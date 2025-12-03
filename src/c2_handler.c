@@ -18,7 +18,7 @@
 #endif
 
 // Define C2 server endpoint
-#define C2_SERVER "http://127.0.0.1"
+#define C2_SERVER "127.0.0.1"
 #define C2_PORT 8080
 
 // Command enumeration
