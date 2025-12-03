@@ -27,7 +27,7 @@ typedef struct {
 } SystemInfo;
 
 // Get disk free space for C: drive
-ULARGE_INTEGER GetDiskFreeSpace(void) {
+ULARGE_INTEGER GetFreeDiskSpace(void) {
     ULARGE_INTEGER freeBytesAvailable = {0};
     GetDiskFreeSpaceExA("C:\\", &freeBytesAvailable, NULL, NULL);
     return freeBytesAvailable;
@@ -103,7 +103,7 @@ SystemInfo* CollectSystemInfo(void) {
     info->isRemoteSession = GetSystemMetrics(SM_REMOTESESSION);
 
     // Get disk information
-    info->freeDiskSpace = GetDiskFreeSpace();
+    info->freeDiskSpace = GetFreeDiskSpace();
     info->totalDiskSpace = GetTotalDiskSpace();
     info->numLogicalDrives = CountLogicalDrives();
 

