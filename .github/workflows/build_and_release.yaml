@@ -16,19 +16,35 @@ jobs:
   build_and_release:
     runs-on: windows-latest
     steps:
-    - name: Sync Repo to the Server
-      uses: actions/checkout@v1
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
     - name: Create Output Directory
-      run: New-Item -ItemType Directory -Path .\output
+      run: New-Item -ItemType Directory -Path .\output -Force | Out-Null
 
-    - name: Compile 64bit Binary
-      run: gcc .\src\main.c -o .\output\<output_executable_name>.exe -s -m64
+    - name: Compile 64-bit Binary
+      run: |
+        cd src
+        gcc main.c -o ..\output\apt28.exe -s -m64 -Wall -Wextra `
+          -lwininet -lws2_32 -lntdll -lwinmm -lpsapi -luser32 -lgdi32 -lkernel32
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Compilation failed"
+          exit 1
+        }
+        cd ..
 
     - name: Read Version
       run: |
         $version = Get-Content VERSION
         Write-Output "VERSION=$version" >> $env:GITHUB_ENV
+
+    - name: Verify Build Output
+      run: |
+        if (-not (Test-Path .\output\apt28.exe)) {
+          Write-Error "Build output not found: .\output\apt28.exe"
+          exit 1
+        }
+        Write-Output "Build successful: $(Get-Item .\output\apt28.exe | ForEach-Object { $_.Length } ) bytes"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
