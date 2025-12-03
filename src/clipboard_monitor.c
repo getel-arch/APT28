@@ -103,6 +103,7 @@ char* start_clipboard_monitor() {
             if (pszText != NULL) {
                 // Convert wide string to multibyte
                 int len = WideCharToMultiByte(CP_UTF8, 0, pszText, -1, result, 65535, NULL, NULL);
+                (void)len;  // Conversion success checked by non-zero return
                 GlobalUnlock(hData);
                 CloseClipboard();
                 return result;

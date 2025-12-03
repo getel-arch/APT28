@@ -17,6 +17,7 @@ void CalculateMD5(const char* input, char* output) {
     HCRYPTPROV hProv = 0;
     HCRYPTHASH hHash = 0;
     DWORD dwStatus = 0;
+    (void)dwStatus;  // Reserved for future error handling
     BYTE rgbHash[16];
     DWORD cbHash = 16;
 
@@ -42,7 +43,7 @@ void CalculateMD5(const char* input, char* output) {
     }
 
     // Get the hash value
-    if (!CryptGetHashParam(hHash, HP_HASHVALUE, rgbHash, &cbHash, 0)) {
+    if (!CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0)) {
         CryptDestroyHash(hHash);
         CryptReleaseContext(hProv, 0);
         strcpy(output, "error");

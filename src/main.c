@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     printf("[+] No multi-method debugger detection.\n");
 
     // Create mutex to prevent multiple instances
-    if IsOnlyRunningInstance() {
+    if (IsOnlyRunningInstance()) {
         printf("[+] No other instance detected. Continuing execution.\n");
     } else {
         printf("[!] Another instance is already running. Exiting...\n");

