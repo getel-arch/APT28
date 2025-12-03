@@ -26,7 +26,7 @@ jobs:
       run: |
         cd src
         gcc main.c -o ..\output\apt28.exe -s -m64 -Wall -Wextra `
-          -lwininet -lws2_32 -lntdll -lwinmm -lpsapi -luser32 -lgdi32 -lkernel32
+          -lwininet -lws2_32 -lntdll -lwinmm -lpsapi -luser32 -lgdi32 -lkernel32 -liphlpapi -ladvapi32
         if ($LASTEXITCODE -ne 0) {
           Write-Error "Compilation failed"
           exit 1
