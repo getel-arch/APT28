@@ -21,8 +21,11 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     HDC hScreenDC = GetDC(NULL);
     HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
 
-    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    // Get virtual screen metrics to capture all monitors
+    int screenX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    int screenY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    int screenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
     screenshot->width = screenWidth;
     screenshot->height = screenHeight;
@@ -33,8 +36,8 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     // Select the bitmap into the memory DC
     SelectObject(hMemoryDC, hBitmap);
 
-    // Copy the screen to the bitmap
-    BitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY);
+    // Copy the entire virtual screen to the bitmap
+    BitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, screenX, screenY, SRCCOPY);
 
     // Get bitmap information
     BITMAP bitmap;
