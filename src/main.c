@@ -24,12 +24,12 @@ int main(int argc, char* argv[]) {
     printf("[+] No multi-method debugger detection.\n");
 
     // Create mutex to prevent multiple instances
-    if (IsOnlyRunningInstance()) {
-        printf("[+] No other instance detected. Continuing execution.\n");
-    } else {
+    SingleInstanceMutex* instanceMutex = CreateSingleInstanceMutex();
+    if (instanceMutex == NULL) {
         printf("[!] Another instance is already running. Exiting...\n");
         exit(1);
     }
+    printf("[+] Single instance mutex acquired. Continuing execution.\n");
 
     printf("[*] Proceeding with malware operations...\n");
 

@@ -101,24 +101,6 @@ SingleInstanceMutex* CreateSingleInstanceMutex(void) {
     return mutex;
 }
 
-// Try to acquire the mutex (non-blocking)
-BOOL TryAcquireSingleInstanceMutex(SingleInstanceMutex* mutex) {
-    if (mutex == NULL || mutex->mutex == NULL) {
-        return FALSE;
-    }
-
-    // Try to acquire with 0 timeout (non-blocking)
-    DWORD result = WaitForSingleObject(mutex->mutex, 0);
-    return (result == WAIT_OBJECT_0);
-}
-
-// Release the mutex
-void ReleaseSingleInstanceMutex(SingleInstanceMutex* mutex) {
-    if (mutex != NULL && mutex->mutex != NULL) {
-        ReleaseMutex(mutex->mutex);
-    }
-}
-
 // Free the mutex
 void FreeSingleInstanceMutex(SingleInstanceMutex* mutex) {
     if (mutex != NULL) {
@@ -128,31 +110,4 @@ void FreeSingleInstanceMutex(SingleInstanceMutex* mutex) {
         }
         free(mutex);
     }
-}
-
-// Check if this is the only running instance
-BOOL IsOnlyRunningInstance(void) {
-    CHAR computerName[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-    
-    if (!GetComputerNameA(computerName, &size)) {
-        return FALSE;
-    }
-
-    // Calculate MD5 hash of computer name
-    char md5Hash[33];
-    CalculateMD5(computerName, md5Hash);
-
-    // Create mutex name
-    char mutexName[64];
-    snprintf(mutexName, sizeof(mutexName), "Global\\APT28_%s", md5Hash);
-
-    // Try to open existing mutex
-    HANDLE hMutex = OpenMutexA(MUTEX_ALL_ACCESS, FALSE, mutexName);
-    if (hMutex != NULL) {
-        CloseHandle(hMutex);
-        return FALSE; // Another instance exists
-    }
-
-    return TRUE; // No other instance exists
 }
