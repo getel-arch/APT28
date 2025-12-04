@@ -17,15 +17,14 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
         return NULL;
     }
 
-    // Get the screen's device context
-    HDC hScreenDC = GetDC(NULL);
+    // Get the desktop window and its device context
+    HWND hDesktopWnd = GetDesktopWindow();
+    HDC hScreenDC = GetDC(hDesktopWnd);
     HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
 
-    // Get virtual screen metrics to capture all monitors
-    int screenX = GetSystemMetrics(SM_XVIRTUALSCREEN);
-    int screenY = GetSystemMetrics(SM_YVIRTUALSCREEN);
-    int screenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    int screenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    // Get actual screen dimensions (accounting for DPI scaling)
+    int screenWidth = GetDeviceCaps(hScreenDC, HORZRES);
+    int screenHeight = GetDeviceCaps(hScreenDC, VERTRES);
 
     screenshot->width = screenWidth;
     screenshot->height = screenHeight;
@@ -34,10 +33,10 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
 
     // Select the bitmap into the memory DC
-    SelectObject(hMemoryDC, hBitmap);
+    HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
 
-    // Copy the entire virtual screen to the bitmap
-    BitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, screenX, screenY, SRCCOPY);
+    // Copy the entire screen to the bitmap
+    BitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY);
 
     // Get bitmap information
     BITMAP bitmap;
@@ -86,9 +85,10 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     GetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
     // Clean up
+    SelectObject(hMemoryDC, hOldBitmap);
     DeleteObject(hBitmap);
     DeleteDC(hMemoryDC);
-    ReleaseDC(NULL, hScreenDC);
+    ReleaseDC(hDesktopWnd, hScreenDC);
 
     return screenshot;
 }
