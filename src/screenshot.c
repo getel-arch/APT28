@@ -62,9 +62,10 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     screenshot->data = (unsigned char*)malloc(dwTotalSize);
     if (screenshot->data == NULL) {
         free(screenshot);
+        SelectObject(hMemoryDC, hOldBitmap);
         DeleteObject(hBitmap);
         DeleteDC(hMemoryDC);
-        ReleaseDC(NULL, hScreenDC);
+        ReleaseDC(hDesktopWnd, hScreenDC);
         return NULL;
     }
 

