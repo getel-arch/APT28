@@ -22,9 +22,9 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     HDC hScreenDC = GetDC(hDesktopWnd);
     HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
 
-    // Get actual screen dimensions (accounting for DPI scaling)
-    int screenWidth = GetDeviceCaps(hScreenDC, HORZRES);
-    int screenHeight = GetDeviceCaps(hScreenDC, VERTRES);
+    // Get true physical screen dimensions (not scaled by DPI)
+    int screenWidth = GetDeviceCaps(hScreenDC, DESKTOPHORZRES);
+    int screenHeight = GetDeviceCaps(hScreenDC, DESKTOPVERTRES);
 
     screenshot->width = screenWidth;
     screenshot->height = screenHeight;
