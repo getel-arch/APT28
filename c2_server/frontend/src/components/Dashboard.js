@@ -81,51 +81,6 @@ function Dashboard() {
           <div><strong>Last Updated:</strong> {new Date().toLocaleString()}</div>
         </div>
       </div>
-
-      <div className="card">
-        <h2>Capabilities</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Capability</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>1</td>
-              <td>Audio Recorder</td>
-              <td>Record audio from client microphone</td>
-            </tr>
-            <tr>
-              <td>2</td>
-              <td>Clipboard Monitor</td>
-              <td>Monitor clipboard activity</td>
-            </tr>
-            <tr>
-              <td>3</td>
-              <td>Keylogger</td>
-              <td>Capture keyboard input</td>
-            </tr>
-            <tr>
-              <td>4</td>
-              <td>Screenshot</td>
-              <td>Take screenshots of client display</td>
-            </tr>
-            <tr>
-              <td>5</td>
-              <td>Info Collector</td>
-              <td>Collect system information</td>
-            </tr>
-            <tr>
-              <td>6</td>
-              <td>Command Executor</td>
-              <td>Execute commands with cmdline evasion</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

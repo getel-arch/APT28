@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 
-function Clients() {
+function Clients({ onClientSelect }) {
   const [clients, setClients] = useState({});
   const [loading, setLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState(null);
 
   useEffect(() => {
     fetchClients();
@@ -26,15 +25,6 @@ function Clients() {
   const isClientActive = (lastSeen) => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     return new Date(lastSeen) > fiveMinutesAgo;
-  };
-
-  const viewClientDetails = async (clientId) => {
-    try {
-      const data = await api.getClient(clientId);
-      setSelectedClient(data);
-    } catch (error) {
-      console.error('Error fetching client details:', error);
-    }
   };
 
   if (loading) {
@@ -74,8 +64,8 @@ function Clients() {
                   <td>{new Date(client.registered_at).toLocaleString()}</td>
                   <td>{new Date(client.last_seen).toLocaleString()}</td>
                   <td>
-                    <button className="btn" onClick={() => viewClientDetails(client.id)}>
-                      Details
+                    <button className="btn" onClick={() => onClientSelect && onClientSelect(client.id)}>
+                      View Details
                     </button>
                   </td>
                 </tr>
@@ -84,18 +74,6 @@ function Clients() {
           </table>
         )}
       </div>
-
-      {selectedClient && (
-        <div className="card">
-          <h2>Client Details</h2>
-          <button className="btn" style={{ marginBottom: '15px' }} onClick={() => setSelectedClient(null)}>
-            Close
-          </button>
-          <div className="code-block">
-            <pre>{JSON.stringify(selectedClient, null, 2)}</pre>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

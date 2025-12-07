@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import Dashboard from './components/Dashboard';
 import Clients from './components/Clients';
+import ClientDetail from './components/ClientDetail';
 import Commands from './components/Commands';
 import Results from './components/Results';
 import './index.css';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedClientId, setSelectedClientId] = useState(null);
+
+  const handleClientSelect = (clientId) => {
+    setSelectedClientId(clientId);
+  };
+
+  const handleBackToClients = () => {
+    setSelectedClientId(null);
+  };
 
   return (
     <div className="container">
@@ -44,7 +54,8 @@ function App() {
 
       <div className="content">
         {activeTab === 'dashboard' && <Dashboard />}
-        {activeTab === 'clients' && <Clients />}
+        {activeTab === 'clients' && !selectedClientId && <Clients onClientSelect={handleClientSelect} />}
+        {activeTab === 'clients' && selectedClientId && <ClientDetail clientId={selectedClientId} onBack={handleBackToClients} />}
         {activeTab === 'commands' && <Commands />}
         {activeTab === 'results' && <Results />}
       </div>
