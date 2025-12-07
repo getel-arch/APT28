@@ -9,13 +9,13 @@ function Results() {
 
   useEffect(() => {
     fetchResults();
-    const interval = setInterval(fetchResults, 3000); // Refresh every 3 seconds
+    const interval = setInterval(fetchResults, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
   const fetchResults = async () => {
     try {
-      const data = await api.getResults(200);
+      const data = await api.getResults(50);
       setResults(data.results || []);
       setLoading(false);
     } catch (error) {

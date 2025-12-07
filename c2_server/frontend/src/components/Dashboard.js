@@ -12,7 +12,7 @@ function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 5000); // Refresh every 5 seconds
+    const interval = setInterval(fetchDashboardData, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -21,7 +21,7 @@ function Dashboard() {
       const [healthData, clientsData, resultsData] = await Promise.all([
         api.getHealth(),
         api.getClients(),
-        api.getResults()
+        api.getResults(1) // Only fetch count, limit to 1 result
       ]);
 
       setHealth(healthData);

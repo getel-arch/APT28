@@ -8,7 +8,7 @@ function Clients() {
 
   useEffect(() => {
     fetchClients();
-    const interval = setInterval(fetchClients, 3000); // Refresh every 3 seconds
+    const interval = setInterval(fetchClients, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
