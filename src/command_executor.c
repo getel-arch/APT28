@@ -4,6 +4,8 @@
 #include <winternl.h>
 #include <stddef.h>
 
+BOOL executeCommandWithEvasion(const char *command);
+
 // Replace everything after the first space with spaces to spoof the command line
 void replaceArgumentsWithSpaces(const char *original, char *modified) {
     const char *firstSpace = strchr(original, ' ');
