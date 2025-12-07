@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "base64.h"
+
+// Forward declaration of base64_encode from base64.c
+extern char* base64_encode(const unsigned char* data, size_t data_len);
 
 char* get_location_info() {
     GEOID geoId = GetUserGeoID(GEOCLASS_NATION);
