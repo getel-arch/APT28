@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { api, CAPABILITIES } from '../api';
+import { api } from '../api';
 
 function Commands() {
   const [clients, setClients] = useState({});
+  const [capabilities, setCapabilities] = useState({});
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedCapability, setSelectedCapability] = useState('1');
   const [commandArgs, setCommandArgs] = useState('');
@@ -11,6 +12,7 @@ function Commands() {
 
   useEffect(() => {
     fetchClients();
+    fetchCapabilities();
   }, []);
 
   const fetchClients = async () => {
@@ -19,6 +21,15 @@ function Commands() {
       setClients(data.clients || {});
     } catch (error) {
       console.error('Error fetching clients:', error);
+    }
+  };
+
+  const fetchCapabilities = async () => {
+    try {
+      const caps = await api.getCapabilities();
+      setCapabilities(caps);
+    } catch (error) {
+      console.error('Error fetching capabilities:', error);
     }
   };
 
@@ -90,7 +101,7 @@ function Commands() {
               onChange={(e) => setSelectedCapability(e.target.value)}
               required
             >
-              {Object.entries(CAPABILITIES)
+              {Object.entries(capabilities)
                 .filter(([id]) => id !== '0') // Exclude "No Command"
                 .map(([id, name]) => (
                   <option key={id} value={id}>
@@ -133,40 +144,17 @@ function Commands() {
             <tr>
               <th>ID</th>
               <th>Capability</th>
-              <th>Description</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>1</td>
-              <td>Audio Recorder</td>
-              <td>Records audio from the target's microphone</td>
-            </tr>
-            <tr>
-              <td>2</td>
-              <td>Clipboard Monitor</td>
-              <td>Monitors and captures clipboard content</td>
-            </tr>
-            <tr>
-              <td>3</td>
-              <td>Keylogger</td>
-              <td>Captures keyboard input and key presses</td>
-            </tr>
-            <tr>
-              <td>4</td>
-              <td>Screenshot</td>
-              <td>Takes a screenshot of the target's screen</td>
-            </tr>
-            <tr>
-              <td>5</td>
-              <td>Info Collector</td>
-              <td>Collects system information and metadata</td>
-            </tr>
-            <tr>
-              <td>6</td>
-              <td>Command Executor</td>
-              <td>Executes system commands with cmdline evasion</td>
-            </tr>
+            {Object.entries(capabilities)
+              .filter(([id]) => id !== '0')
+              .map(([id, name]) => (
+                <tr key={id}>
+                  <td>{id}</td>
+                  <td>{name}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>

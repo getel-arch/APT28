@@ -37,19 +37,15 @@ export const api = {
     return response.data;
   },
 
+  // Get capabilities
+  getCapabilities: async () => {
+    const response = await axios.get(`${API_BASE_URL}/capabilities`);
+    return response.data.capabilities;
+  },
+
   // Health check
   getHealth: async () => {
     const response = await axios.get(`${API_BASE_URL}/health`);
     return response.data;
   }
-};
-
-export const CAPABILITIES = {
-  0: 'No Command (idle)',
-  1: 'Audio Recorder',
-  2: 'Clipboard Monitor',
-  3: 'Keylogger',
-  4: 'Screenshot',
-  5: 'Info Collector',
-  6: 'Command Executor'
 };

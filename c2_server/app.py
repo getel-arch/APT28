@@ -299,6 +299,18 @@ def get_client_results(client_id):
     }), 200
 
 
+@app.route('/api/capabilities', methods=['GET'])
+def get_capabilities():
+    """
+    Get available capabilities
+    URL: GET /api/capabilities
+    """
+    return jsonify({
+        "status": "success",
+        "capabilities": CAPABILITIES
+    }), 200
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """
@@ -355,6 +367,7 @@ def api_index():
             "send_command": "POST /api/send_command",
             "get_client": "GET /api/client/<client_id>",
             "client_results": "GET /api/client/<client_id>/results",
+            "capabilities": "GET /api/capabilities",
             "health": "GET /api/health"
         }
     }), 200
