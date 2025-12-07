@@ -103,6 +103,8 @@ def get_command():
     
     if cmd != 0:
         logger.info(f"[*] Capability command sent to {client_id}: {cmd} ({CAPABILITIES.get(cmd, 'Unknown')})")
+        # Reset command to 0 after client fetches it
+        commands[client_id] = 0
     else:
         logger.debug(f"[*] No pending command for {client_id}")
     
