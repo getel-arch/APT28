@@ -1,64 +1,51 @@
 import React, { useState } from 'react';
 import Dashboard from './components/Dashboard';
 import Clients from './components/Clients';
-import ClientDetail from './components/ClientDetail';
 import Commands from './components/Commands';
 import Results from './components/Results';
 import './index.css';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedClientId, setSelectedClientId] = useState(null);
-
-  const handleClientSelect = (clientId) => {
-    setSelectedClientId(clientId);
-  };
-
-  const handleBackToClients = () => {
-    setSelectedClientId(null);
-  };
+  const [activeView, setActiveView] = useState('dashboard');
 
   return (
-    <div className="container">
-      <div className="header">
-        <h1>⚡ APT28 C2 Server</h1>
-        <p>Command & Control Dashboard - Docker Deployment</p>
-      </div>
+    <div className="app">
+      <header className="header">
+        <h1>⚡ APT28 C2</h1>
+        <nav className="nav">
+          <button
+            className={activeView === 'dashboard' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveView('dashboard')}
+          >
+            📊 Dashboard
+          </button>
+          <button
+            className={activeView === 'clients' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveView('clients')}
+          >
+            💻 Clients
+          </button>
+          <button
+            className={activeView === 'commands' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveView('commands')}
+          >
+            ⚙️ Send Command
+          </button>
+          <button
+            className={activeView === 'results' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveView('results')}
+          >
+            📋 Results
+          </button>
+        </nav>
+      </header>
 
-      <div className="nav">
-        <button
-          className={activeTab === 'dashboard' ? 'active' : ''}
-          onClick={() => setActiveTab('dashboard')}
-        >
-          Dashboard
-        </button>
-        <button
-          className={activeTab === 'clients' ? 'active' : ''}
-          onClick={() => setActiveTab('clients')}
-        >
-          Clients
-        </button>
-        <button
-          className={activeTab === 'commands' ? 'active' : ''}
-          onClick={() => setActiveTab('commands')}
-        >
-          Commands
-        </button>
-        <button
-          className={activeTab === 'results' ? 'active' : ''}
-          onClick={() => setActiveTab('results')}
-        >
-          Results
-        </button>
-      </div>
-
-      <div className="content">
-        {activeTab === 'dashboard' && <Dashboard />}
-        {activeTab === 'clients' && !selectedClientId && <Clients onClientSelect={handleClientSelect} />}
-        {activeTab === 'clients' && selectedClientId && <ClientDetail clientId={selectedClientId} onBack={handleBackToClients} />}
-        {activeTab === 'commands' && <Commands />}
-        {activeTab === 'results' && <Results />}
-      </div>
+      <main className="main-content">
+        {activeView === 'dashboard' && <Dashboard />}
+        {activeView === 'clients' && <Clients />}
+        {activeView === 'commands' && <Commands />}
+        {activeView === 'results' && <Results />}
+      </main>
     </div>
   );
 }

