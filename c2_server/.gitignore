@@ -43,7 +43,6 @@ c2_server.log
 # Data
 *.db
 *.sqlite
-*.json
 
 # OS
 .DS_Store
