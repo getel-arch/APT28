@@ -18,9 +18,20 @@
 #pragma comment(lib, "ws2_32.lib")
 #endif
 
-// Define C2 server endpoint
-#define C2_SERVER "127.0.0.1"
-#define C2_PORT 8080
+// Global C2 server endpoint variables (set from main)
+char C2_SERVER[256] = "127.0.0.1";  // Default value
+int C2_PORT = 8080;  // Default value
+
+// Function to set C2 server configuration
+void set_c2_server(const char *server, int port) {
+    if (server) {
+        strncpy(C2_SERVER, server, sizeof(C2_SERVER) - 1);
+        C2_SERVER[sizeof(C2_SERVER) - 1] = '\0';
+    }
+    if (port > 0 && port <= 65535) {
+        C2_PORT = port;
+    }
+}
 
 // Command enumeration
 typedef enum {
