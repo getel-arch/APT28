@@ -39,16 +39,16 @@ See [C2 Server Documentation](c2_server/README.md) for details.
 
 ### Building the Implant
 
-Compile the Windows implant:
+The implant is built as a **DLL for COM hijacking** persistence:
 
 ```bash
-# Using MinGW on Linux
-cd src
-x86_64-w64-mingw32-gcc -o APT28.exe main.c -lwininet -lws2_32 -mwindows
+# Build using Makefile
+make
 
-# Or use the automated build system
-# See .github/workflows/build_and_release.yaml
+# Output: build/apt28.dll
 ```
+
+For COM hijacking deployment instructions, see [COM_HIJACKING.md](COM_HIJACKING.md)
 
 ## Project Structure
 
