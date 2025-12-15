@@ -176,7 +176,9 @@ def init_db(app):
         try:
             # Create all tables - this is idempotent and safe with preload
             db.create_all()
+            db.session.commit()
             logger.info("Database tables created successfully")
         except Exception as e:
             # Log but don't fail - tables might already exist from another worker
             logger.warning(f"Database initialization warning (may be normal with multiple workers): {e}")
+            db.session.rollback()

