@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY cli.py .
 COPY models.py .
+COPY init_db.py .
 
 # Copy frontend build from previous stage
 COPY --from=frontend-build /frontend/build ./static
@@ -45,5 +46,11 @@ ENV C2_PORT=8080
 ENV DEBUG=False
 ENV FLASK_ENV=production
 
-# Run application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "300", "--access-logfile", "/app/logs/access.log", "--error-logfile", "/app/logs/error.log", "app:app"]
+# Create entrypoint script
+RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
+    echo 'python init_db.py' >> /app/entrypoint.sh && \
+    echo 'exec gunicorn --bind 0.0.0.0:8080 --workers 4 --timeout 300 --preload --access-logfile /app/logs/access.log --error-logfile /app/logs/error.log app:app' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Run application with proper initialization
+CMD ["/app/entrypoint.sh"]

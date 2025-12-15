@@ -168,7 +168,13 @@ class Result(db.Model):
 
 
 def init_db(app):
-    """Initialize database"""
+    """Initialize database with proper error handling for concurrent workers"""
     db.init_app(app)
     with app.app_context():
-        db.create_all()
+        try:
+            # Create all tables - this is idempotent and safe with preload
+            db.create_all()
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            # Log but don't fail - tables might already exist from another worker
+            logger.warning(f"Database initialization warning (may be normal with multiple workers): {e}")
