@@ -3,6 +3,9 @@
 #include <string.h>
 #include <windows.h>
 
+// Forward declaration
+unsigned char* base64_decode(const char* encoded, size_t* output_len);
+
 // Function to read a file and return base64-encoded content
 // Returns JSON string with filename and content, or error message
 // Format: {"filename":"path","size":1234,"content":"base64data"}
