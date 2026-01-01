@@ -6,16 +6,12 @@ function Results() {
   const [selectedResult, setSelectedResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [capabilities, setCapabilities] = useState({});
-  const [files, setFiles] = useState([]);
-  const [showFiles, setShowFiles] = useState(false);
 
   useEffect(() => {
     fetchCapabilities();
     fetchResults();
-    fetchFiles();
     const interval = setInterval(() => {
       fetchResults();
-      fetchFiles();
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -40,24 +36,36 @@ function Results() {
     }
   };
 
-  const fetchFiles = async () => {
-    try {
-      const data = await api.getFiles();
-      console.log('Fetched files:', data); // Debug log
-      // Ensure files is an array
-      const filesArray = Array.isArray(data.files) ? data.files : [];
-      setFiles(filesArray);
-    } catch (error) {
-      console.error('Error fetching files:', error);
-      setFiles([]); // Reset to empty array on error
-    }
-  };
-
   const decodeBase64 = (str) => {
     try {
       return atob(str);
     } catch {
       return null;
+    }
+  };
+
+  const downloadFileFromResult = (fileData, filename) => {
+    try {
+      // Decode base64 content
+      const binaryString = atob(fileData.content);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Create blob and download
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Failed to download file: ' + error.message);
     }
   };
 
@@ -89,10 +97,14 @@ function Results() {
                   <div><strong>Size:</strong> {(fileData.size / 1024).toFixed(2)} KB ({fileData.size.toLocaleString()} bytes)</div>
                   <div><strong>Content Length:</strong> {fileData.content ? fileData.content.length.toLocaleString() : 0} chars (base64)</div>
                 </div>
-                <div style={{ marginTop: '1rem', padding: '0.5rem', background: '#161b22', borderRadius: '4px' }}>
-                  <small style={{ color: '#8b949e' }}>
-                    ℹ️ File content is stored separately. Check the "Files" tab to download this file.
-                  </small>
+                <div style={{ marginTop: '1rem' }}>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => downloadFileFromResult(fileData, fileData.filename)}
+                    disabled={!fileData.content}
+                  >
+                    📥 Download File
+                  </button>
                 </div>
               </div>
             );
@@ -119,6 +131,7 @@ function Results() {
                       <tr style={{ borderBottom: '1px solid #30363d' }}>
                         <th style={{ textAlign: 'left', padding: '0.5rem' }}>Filename</th>
                         <th style={{ textAlign: 'right', padding: '0.5rem' }}>Size</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -126,15 +139,20 @@ function Results() {
                         <tr key={idx} style={{ borderBottom: '1px solid #21262d' }}>
                           <td style={{ padding: '0.5rem' }}><code>{file.filename}</code></td>
                           <td style={{ textAlign: 'right', padding: '0.5rem' }}>{(file.size / 1024).toFixed(2)} KB</td>
+                          <td style={{ textAlign: 'right', padding: '0.5rem' }}>
+                            <button 
+                              className="btn" 
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+                              onClick={() => downloadFileFromResult(file, file.filename)}
+                              disabled={!file.content}
+                            >
+                              📥 Download
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-                <div style={{ marginTop: '1rem', padding: '0.5rem', background: '#161b22', borderRadius: '4px' }}>
-                  <small style={{ color: '#8b949e' }}>
-                    ℹ️ Files are stored separately. Check the "Files" tab to download these files.
-                  </small>
                 </div>
               </div>
             );
@@ -237,88 +255,8 @@ function Results() {
 
   return (
     <div>
-      <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
-        <button 
-          className={`btn ${!showFiles ? 'btn-primary' : ''}`} 
-          onClick={() => setShowFiles(false)}
-        >
-          Results ({results.length})
-        </button>
-        <button 
-          className={`btn ${showFiles ? 'btn-primary' : ''}`} 
-          onClick={() => setShowFiles(true)}
-        >
-          Files ({files.length})
-        </button>
-      </div>
-
-      {showFiles ? (
-        <div className="card">
-          <h2>Exfiltrated Files ({files.length})</h2>
-          
-          {files.length === 0 ? (
-            <div className="empty-state">
-              <p>No files yet</p>
-              <small>Exfiltrated files will appear here</small>
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Client</th>
-                    <th>Filename</th>
-                    <th>Size</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {files.map((file) => {
-                    // Handle case where file might be malformed
-                    try {
-                      const fileObj = typeof file === 'string' ? JSON.parse(file) : file;
-                      // Skip if fileObj doesn't have required properties
-                      if (!fileObj.id || !fileObj.filename) {
-                        console.error('Invalid file object:', fileObj);
-                        return null;
-                      }
-                      return (
-                        <tr key={fileObj.id}>
-                          <td>{new Date(fileObj.timestamp).toLocaleString()}</td>
-                          <td><code>{fileObj.client_id}</code></td>
-                          <td>
-                            <span style={{ fontFamily: 'monospace' }}>{fileObj.filename}</span>
-                            {fileObj.original_path && (
-                              <small style={{ display: 'block', color: '#8b949e' }}>
-                                {fileObj.original_path}
-                              </small>
-                            )}
-                          </td>
-                          <td>{(fileObj.file_size / 1024).toFixed(2)} KB</td>
-                          <td>
-                            <button 
-                              className="btn" 
-                              onClick={() => api.downloadFile(fileObj.id, fileObj.filename)}
-                            >
-                              Download
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    } catch (error) {
-                      console.error('Error rendering file row:', error, file);
-                      return null;
-                    }
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="card">
-          <h2>Execution Results ({results.length})</h2>
+      <div className="card">
+        <h2>Execution Results ({results.length})</h2>
       
       {results.length === 0 ? (
         <div className="empty-state">
@@ -360,8 +298,7 @@ function Results() {
           </table>
         </div>
       )}
-    </div>
-      )}
+      </div>
     </div>
   );
 }
