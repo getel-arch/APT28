@@ -43,6 +43,39 @@ export const api = {
     return response.data.capabilities;
   },
 
+  // Get all exfiltrated files
+  getFiles: async (clientId = null) => {
+    const url = clientId ? `${API_BASE_URL}/files?client_id=${clientId}` : `${API_BASE_URL}/files`;
+    const response = await axios.get(url);
+    return response.data;
+  },
+
+  // Get specific file
+  getFile: async (fileId) => {
+    const response = await axios.get(`${API_BASE_URL}/files/${fileId}`);
+    return response.data;
+  },
+
+  // Download file
+  downloadFile: async (fileId, filename) => {
+    const response = await axios.get(`${API_BASE_URL}/files/${fileId}/download`, {
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  },
+
+  // Get files from specific client
+  getClientFiles: async (clientId) => {
+    const response = await axios.get(`${API_BASE_URL}/client/${clientId}/files`);
+    return response.data;
+  },
+
   // Health check
   getHealth: async () => {
     const response = await axios.get(`${API_BASE_URL}/health`);

