@@ -43,9 +43,13 @@ function Results() {
   const fetchFiles = async () => {
     try {
       const data = await api.getFiles();
-      setFiles(data.files || []);
+      console.log('Fetched files:', data); // Debug log
+      // Ensure files is an array
+      const filesArray = Array.isArray(data.files) ? data.files : [];
+      setFiles(filesArray);
     } catch (error) {
       console.error('Error fetching files:', error);
+      setFiles([]); // Reset to empty array on error
     }
   };
 
@@ -58,9 +62,89 @@ function Results() {
   };
 
   const renderResultData = (result) => {
-    const { result: data, result_type } = result;
+    const { result: data, result_type, capability } = result;
     
     if (!data) return <p>No data</p>;
+
+    // Special handling for file exfiltration results (capabilities 8 and 9)
+    if ((capability === 8 || capability === 9) && result_type === 'text') {
+      const decoded = decodeBase64(data);
+      if (decoded) {
+        try {
+          const fileData = JSON.parse(decoded);
+          
+          // Single file exfiltration (capability 8)
+          if (capability === 8 && fileData.filename) {
+            return (
+              <div style={{ 
+                background: '#0d1117',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                padding: '1rem'
+              }}>
+                <h3 style={{ marginTop: 0 }}>📁 Exfiltrated File</h3>
+                <div style={{ marginTop: '1rem' }}>
+                  <div><strong>Filename:</strong> <code>{fileData.filename}</code></div>
+                  <div><strong>Original Path:</strong> <code>{fileData.filepath || fileData.filename}</code></div>
+                  <div><strong>Size:</strong> {(fileData.size / 1024).toFixed(2)} KB ({fileData.size.toLocaleString()} bytes)</div>
+                  <div><strong>Content Length:</strong> {fileData.content ? fileData.content.length.toLocaleString() : 0} chars (base64)</div>
+                </div>
+                <div style={{ marginTop: '1rem', padding: '0.5rem', background: '#161b22', borderRadius: '4px' }}>
+                  <small style={{ color: '#8b949e' }}>
+                    ℹ️ File content is stored separately. Check the "Files" tab to download this file.
+                  </small>
+                </div>
+              </div>
+            );
+          }
+          
+          // Batch file exfiltration (capability 9)
+          if (capability === 9 && Array.isArray(fileData)) {
+            const totalSize = fileData.reduce((sum, f) => sum + (f.size || 0), 0);
+            return (
+              <div style={{ 
+                background: '#0d1117',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                padding: '1rem'
+              }}>
+                <h3 style={{ marginTop: 0 }}>📁 Batch File Exfiltration</h3>
+                <div style={{ marginTop: '1rem' }}>
+                  <div><strong>Files Count:</strong> {fileData.length}</div>
+                  <div><strong>Total Size:</strong> {(totalSize / 1024).toFixed(2)} KB</div>
+                </div>
+                <div style={{ marginTop: '1rem' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #30363d' }}>
+                        <th style={{ textAlign: 'left', padding: '0.5rem' }}>Filename</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fileData.map((file, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #21262d' }}>
+                          <td style={{ padding: '0.5rem' }}><code>{file.filename}</code></td>
+                          <td style={{ textAlign: 'right', padding: '0.5rem' }}>{(file.size / 1024).toFixed(2)} KB</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ marginTop: '1rem', padding: '0.5rem', background: '#161b22', borderRadius: '4px' }}>
+                  <small style={{ color: '#8b949e' }}>
+                    ℹ️ Files are stored separately. Check the "Files" tab to download these files.
+                  </small>
+                </div>
+              </div>
+            );
+          }
+        } catch (e) {
+          // If parsing fails, fall through to show raw text
+          console.error('Failed to parse file exfiltration data:', e);
+        }
+      }
+    }
 
     if (result_type === 'text') {
       const decoded = decodeBase64(data);
@@ -190,29 +274,43 @@ function Results() {
                   </tr>
                 </thead>
                 <tbody>
-                  {files.map((file) => (
-                    <tr key={file.id}>
-                      <td>{new Date(file.timestamp).toLocaleString()}</td>
-                      <td><code>{file.client_id}</code></td>
-                      <td>
-                        <span style={{ fontFamily: 'monospace' }}>{file.filename}</span>
-                        {file.original_path && (
-                          <small style={{ display: 'block', color: '#8b949e' }}>
-                            {file.original_path}
-                          </small>
-                        )}
-                      </td>
-                      <td>{(file.file_size / 1024).toFixed(2)} KB</td>
-                      <td>
-                        <button 
-                          className="btn" 
-                          onClick={() => api.downloadFile(file.id, file.filename)}
-                        >
-                          Download
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {files.map((file) => {
+                    // Handle case where file might be malformed
+                    try {
+                      const fileObj = typeof file === 'string' ? JSON.parse(file) : file;
+                      // Skip if fileObj doesn't have required properties
+                      if (!fileObj.id || !fileObj.filename) {
+                        console.error('Invalid file object:', fileObj);
+                        return null;
+                      }
+                      return (
+                        <tr key={fileObj.id}>
+                          <td>{new Date(fileObj.timestamp).toLocaleString()}</td>
+                          <td><code>{fileObj.client_id}</code></td>
+                          <td>
+                            <span style={{ fontFamily: 'monospace' }}>{fileObj.filename}</span>
+                            {fileObj.original_path && (
+                              <small style={{ display: 'block', color: '#8b949e' }}>
+                                {fileObj.original_path}
+                              </small>
+                            )}
+                          </td>
+                          <td>{(fileObj.file_size / 1024).toFixed(2)} KB</td>
+                          <td>
+                            <button 
+                              className="btn" 
+                              onClick={() => api.downloadFile(fileObj.id, fileObj.filename)}
+                            >
+                              Download
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    } catch (error) {
+                      console.error('Error rendering file row:', error, file);
+                      return null;
+                    }
+                  })}
                 </tbody>
               </table>
             </div>
