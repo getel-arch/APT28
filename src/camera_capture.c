@@ -9,6 +9,42 @@
 #pragma comment(lib, "oleaut32.lib")
 #pragma comment(lib, "strmiids.lib")
 
+// Forward declarations and GUIDs for ISampleGrabber
+DEFINE_GUID(CLSID_SampleGrabber, 0xC1F400A0, 0x3F08, 0x11d3, 0x9F, 0x0B, 0x00, 0x60, 0x08, 0x03, 0x9E, 0x37);
+DEFINE_GUID(IID_ISampleGrabber, 0x6B652FFF, 0x11FE, 0x4fce, 0x92, 0xAD, 0x02, 0x66, 0xB5, 0xD7, 0xC7, 0x8F);
+DEFINE_GUID(IID_ISampleGrabberCB, 0x0579154A, 0x2B53, 0x4994, 0xB0, 0xD0, 0xE7, 0x73, 0x14, 0x8E, 0xFF, 0x85);
+
+// ISampleGrabberCB interface declaration
+#undef INTERFACE
+#define INTERFACE ISampleGrabberCB
+DECLARE_INTERFACE_(ISampleGrabberCB, IUnknown)
+{
+    STDMETHOD(QueryInterface)(THIS_ REFIID riid, void **ppv) PURE;
+    STDMETHOD_(ULONG, AddRef)(THIS) PURE;
+    STDMETHOD_(ULONG, Release)(THIS) PURE;
+    STDMETHOD(SampleCB)(THIS_ double SampleTime, IMediaSample *pSample) PURE;
+    STDMETHOD(BufferCB)(THIS_ double SampleTime, BYTE *pBuffer, long BufferLen) PURE;
+};
+#undef INTERFACE
+
+// ISampleGrabber interface declaration
+#undef INTERFACE
+#define INTERFACE ISampleGrabber
+DECLARE_INTERFACE_(ISampleGrabber, IUnknown)
+{
+    STDMETHOD(QueryInterface)(THIS_ REFIID riid, void **ppv) PURE;
+    STDMETHOD_(ULONG, AddRef)(THIS) PURE;
+    STDMETHOD_(ULONG, Release)(THIS) PURE;
+    STDMETHOD(SetOneShot)(THIS_ BOOL OneShot) PURE;
+    STDMETHOD(SetMediaType)(THIS_ const AM_MEDIA_TYPE *pType) PURE;
+    STDMETHOD(GetConnectedMediaType)(THIS_ AM_MEDIA_TYPE *pType) PURE;
+    STDMETHOD(SetBufferSamples)(THIS_ BOOL BufferThem) PURE;
+    STDMETHOD(GetCurrentBuffer)(THIS_ long *pBufferSize, long *pBuffer) PURE;
+    STDMETHOD(GetCurrentSample)(THIS_ IMediaSample **ppSample) PURE;
+    STDMETHOD(SetCallback)(THIS_ ISampleGrabberCB *pCallback, long WhichMethodToCallback) PURE;
+};
+#undef INTERFACE
+
 // Structure to hold camera capture data
 typedef struct {
     unsigned char* data;

@@ -67,13 +67,13 @@ void VKeyToString(DWORD vkCode, BOOL shift, char* output, int maxLen) {
     
     // Handle F1-F12
     if (vkCode >= VK_F1 && vkCode <= VK_F12) {
-        snprintf(output, maxLen, "[F%d]", vkCode - VK_F1 + 1);
+        snprintf(output, maxLen, "[F%d]", (int)(vkCode - VK_F1 + 1));
         return;
     }
     
     // Handle number pad
     if (vkCode >= VK_NUMPAD0 && vkCode <= VK_NUMPAD9) {
-        snprintf(output, maxLen, "%d", vkCode - VK_NUMPAD0);
+        snprintf(output, maxLen, "%d", (int)(vkCode - VK_NUMPAD0));
         return;
     }
     
