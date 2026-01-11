@@ -126,6 +126,7 @@ class Result(db.Model):
         # 5 = Info Collector -> text (base64-encoded)
         # 6 = Command Executor -> text
         # 7 = Location Collector -> text (base64-encoded)
+        # 10 = Camera Capture -> image
         
         capability_types = {
             1: 'audio',
@@ -134,7 +135,8 @@ class Result(db.Model):
             4: 'image',
             5: 'text',
             6: 'text',
-            7: 'text'
+            7: 'text',
+            10: 'image'
         }
         
         # Get expected type from capability

@@ -65,6 +65,7 @@ CAPABILITIES = {
     7: "Location Collector (get_location_info)",
     8: "File Exfiltrator (exfiltrate_file)",
     9: "Batch File Exfiltrator (exfiltrate_user_files_by_extension)",
+    10: "Camera Capture (start_camera_capture)",
 }
 
 

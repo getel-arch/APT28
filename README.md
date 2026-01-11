@@ -11,6 +11,7 @@ Advanced malware implant with C2 infrastructure and web-based management dashboa
 - **Clipboard Monitoring**: Monitor clipboard content
 - **Keylogging**: Capture keyboard input
 - **Screenshots**: Capture screen images
+- **Camera Capture**: Capture images from webcam
 - **System Information**: Collect system metadata
 - **Command Execution**: Execute commands with cmdline evasion (anti-EDR)
 - **Persistence**: Maintain access across reboots
@@ -95,8 +96,10 @@ APT28/
 | 3 | Keylogger | Capture keystrokes |
 | 4 | Screenshot | Capture screen |
 | 5 | Info Collector | System information |
-| 6 | Command Executor | Execute with cmdline evasion |
-
+| 6 | Command Executor | Execute with cmdline evasion || 7 | Location Collector | Collect geolocation data |
+| 8 | File Exfiltrator | Exfiltrate single file |
+| 9 | Batch File Exfiltrator | Exfiltrate multiple files |
+| 10 | Camera Capture | Capture from webcam |
 ## Usage
 
 ### 1. Deploy C2 Server

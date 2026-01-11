@@ -11,7 +11,8 @@ const CAPABILITY_METADATA = {
   6: { needsArgs: true, hint: 'Executes a shell command', placeholder: 'cmd.exe /c whoami' },
   7: { needsArgs: false, hint: 'Collects location data' },
   8: { needsArgs: true, hint: 'Exfiltrates a single file', placeholder: 'C:\\Users\\victim\\Documents\\secret.pdf' },
-  9: { needsArgs: true, hint: 'Exfiltrates files by extension from directory', placeholder: '.pdf,.docx,.txt or C:\\path|.pdf,.docx' }
+  9: { needsArgs: true, hint: 'Exfiltrates files by extension from directory', placeholder: '.pdf,.docx,.txt or C:\\path|.pdf,.docx' },
+  10: { needsArgs: false, hint: 'Captures image from camera' }
 };
 
 function Commands() {
