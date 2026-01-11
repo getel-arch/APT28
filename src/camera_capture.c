@@ -256,8 +256,25 @@ CameraCaptureData* CaptureCameraImage(void) {
     hr = pSampleGrabber->lpVtbl->SetMediaType(pSampleGrabber, &mt);
     if (FAILED(hr)) goto cleanup;
 
-    // Connect filters
-    hr = pBuild->lpVtbl->RenderStream(pBuild, &PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, (IUnknown*)pCap, pSampleGrabberFilter, NULL);
+    // Create Null Renderer to prevent window display
+    IBaseFilter* pNullRenderer = NULL;
+    hr = CoCreateInstance(&CLSID_NullRenderer, NULL, CLSCTX_INPROC_SERVER,
+                          &IID_IBaseFilter, (void**)&pNullRenderer);
+    if (FAILED(hr)) goto cleanup;
+
+    hr = pGraph->lpVtbl->AddFilter(pGraph, pNullRenderer, L"Null Renderer");
+    if (FAILED(hr)) {
+        pNullRenderer->lpVtbl->Release(pNullRenderer);
+        goto cleanup;
+    }
+
+    // Connect filters: Capture -> SampleGrabber -> NullRenderer (no visible window)
+    hr = pBuild->lpVtbl->RenderStream(pBuild, &PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, 
+                                      (IUnknown*)pCap, pSampleGrabberFilter, pNullRenderer);
+    
+    // Release null renderer as we're done with it
+    if (pNullRenderer) pNullRenderer->lpVtbl->Release(pNullRenderer);
+    
     if (FAILED(hr)) goto cleanup;
 
     // Get connected media type
