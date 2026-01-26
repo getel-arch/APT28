@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#pragma comment(lib, "advapi32.lib")
+#include "dynamic_linking.h"
 
 // Structure to hold mutex information
 typedef struct {
@@ -22,30 +22,30 @@ void CalculateMD5(const char* input, char* output) {
     DWORD cbHash = 16;
 
     // Acquire cryptographic provider
-    if (!CryptAcquireContextA(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+    if (!DynCryptAcquireContextA(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
         strcpy(output, "error");
         return;
     }
 
     // Create hash object
-    if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash)) {
-        CryptReleaseContext(hProv, 0);
+    if (!DynCryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash)) {
+        DynCryptReleaseContext(hProv, 0);
         strcpy(output, "error");
         return;
     }
 
     // Hash the input string
-    if (!CryptHashData(hHash, (BYTE*)input, strlen(input), 0)) {
-        CryptDestroyHash(hHash);
-        CryptReleaseContext(hProv, 0);
+    if (!DynCryptHashData(hHash, (BYTE*)input, strlen(input), 0)) {
+        DynCryptDestroyHash(hHash);
+        DynCryptReleaseContext(hProv, 0);
         strcpy(output, "error");
         return;
     }
 
     // Get the hash value
-    if (!CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0)) {
-        CryptDestroyHash(hHash);
-        CryptReleaseContext(hProv, 0);
+    if (!DynCryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0)) {
+        DynCryptDestroyHash(hHash);
+        DynCryptReleaseContext(hProv, 0);
         strcpy(output, "error");
         return;
     }
@@ -57,8 +57,8 @@ void CalculateMD5(const char* input, char* output) {
     output[32] = '\0';
 
     // Clean up
-    CryptDestroyHash(hHash);
-    CryptReleaseContext(hProv, 0);
+    DynCryptDestroyHash(hHash);
+    DynCryptReleaseContext(hProv, 0);
 }
 
 // Create a single instance mutex based on computer name and username

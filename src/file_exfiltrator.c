@@ -3,6 +3,8 @@
 #include <string.h>
 #include <windows.h>
 
+#include "dynamic_linking.h"
+
 // Forward declaration
 unsigned char* base64_decode(const char* encoded, size_t* output_len);
 

