@@ -38,6 +38,7 @@ BOOL InitializeDynamicFunctions(void) {
     g_DynFuncs.pReleaseDC = (PFN_ReleaseDC)GetFunctionPointer("user32.dll", "ReleaseDC");
     g_DynFuncs.pDeleteDC = (PFN_DeleteDC)GetFunctionPointer("gdi32.dll", "DeleteDC");
     g_DynFuncs.pDeleteObject = (PFN_DeleteObject)GetFunctionPointer("gdi32.dll", "DeleteObject");
+    g_DynFuncs.pGetDIBits = (PFN_GetDIBits)GetFunctionPointer("gdi32.dll", "GetDIBits");
 
     // Load KERNEL32 file I/O functions
     g_DynFuncs.pGetFileAttributesA = (PFN_GetFileAttributesA)GetFunctionPointer("kernel32.dll", "GetFileAttributesA");

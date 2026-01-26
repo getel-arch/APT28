@@ -3,8 +3,6 @@
 #include <psapi.h>
 #include <string.h>
 
-#pragma comment(lib, "psapi.lib")
-
 // Declare base64_encode function
 extern char* base64_encode(const unsigned char* data, size_t data_len);
 

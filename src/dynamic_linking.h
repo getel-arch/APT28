@@ -98,6 +98,16 @@ typedef BOOL (WINAPI *PFN_DeleteDC)(HDC hdc);
 
 typedef BOOL (WINAPI *PFN_DeleteObject)(HGDIOBJ ho);
 
+typedef int (WINAPI *PFN_GetDIBits)(
+    HDC hdc,
+    HBITMAP hbm,
+    UINT start,
+    UINT cLines,
+    LPVOID lpvBits,
+    LPBITMAPINFO lpbmi,
+    UINT usage
+);
+
 typedef DWORD (WINAPI *PFN_GetFileAttributesA)(LPCSTR lpFileName);
 
 typedef HANDLE (WINAPI *PFN_CreateFileA)(
@@ -269,6 +279,7 @@ typedef struct {
     PFN_ReleaseDC pReleaseDC;
     PFN_DeleteDC pDeleteDC;
     PFN_DeleteObject pDeleteObject;
+    PFN_GetDIBits pGetDIBits;
 
     // KERNEL32 functions (file I/O)
     PFN_GetFileAttributesA pGetFileAttributesA;
@@ -336,6 +347,7 @@ BOOL InitializeDynamicFunctions(void);
 #define DynReleaseDC g_DynFuncs.pReleaseDC
 #define DynDeleteDC g_DynFuncs.pDeleteDC
 #define DynDeleteObject g_DynFuncs.pDeleteObject
+#define DynGetDIBits g_DynFuncs.pGetDIBits
 
 #define DynGetFileAttributesA g_DynFuncs.pGetFileAttributesA
 #define DynCreateFileA g_DynFuncs.pCreateFileA

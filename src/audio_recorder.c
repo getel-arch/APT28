@@ -4,9 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Link with winmm.lib for multimedia functions
-#pragma comment(lib, "winmm.lib")
-
 #define SAMPLE_RATE 44100
 #define BITS_PER_SAMPLE 16
 #define CHANNELS 2

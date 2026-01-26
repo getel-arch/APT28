@@ -85,7 +85,7 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
 
     // Get the bitmap pixel data
     unsigned char* bitmapData = screenshot->data + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-    GetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+    DynGetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
     // Clean up
     DynSelectObject(hMemoryDC, hOldBitmap);

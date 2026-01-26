@@ -5,10 +5,6 @@
 #include <lmcons.h>     // UNLEN
 #include <stdlib.h>
 
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "user32.lib")
-#pragma comment(lib, "advapi32.lib")
-
 // Structure to hold collected system information
 typedef struct {
     char username[UNLEN + 1];
