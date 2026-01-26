@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <winternl.h>
 #include <stdlib.h>
+#include "dynamic_linking.h"
 
 // Structure to hold debug detection results
 typedef struct {
@@ -36,14 +37,18 @@ BOOL UsingIsDebuggerPresent(void) {
 // which returns nonzero value when the process is being debugged by a ring 3 debugger
 BOOL UsingNtQueryInformationProcessDebugPort(void) {
     DWORD debugFlag = 0;
-    NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugPort, &debugFlag, sizeof(debugFlag), NULL);
+    if (DynNtQueryInformationProcess != NULL) {
+        DynNtQueryInformationProcess(GetCurrentProcess(), ProcessDebugPort, &debugFlag, sizeof(debugFlag), NULL);
+    }
     return debugFlag != 0;
 }
 
 // Checks using the NtQueryInformationProcess winapi call with ProcessDebugFlags
 BOOL UsingNtQueryInformationProcessDebugFlags(void) {
     DWORD debugFlag = 0;
-    NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugFlags, &debugFlag, sizeof(debugFlag), NULL);
+    if (DynNtQueryInformationProcess != NULL) {
+        DynNtQueryInformationProcess(GetCurrentProcess(), ProcessDebugFlags, &debugFlag, sizeof(debugFlag), NULL);
+    }
     return debugFlag == 0;
 }
 

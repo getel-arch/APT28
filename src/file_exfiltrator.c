@@ -5,6 +5,9 @@
 
 #include "dynamic_linking.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+
 // Forward declaration
 unsigned char* base64_decode(const char* encoded, size_t* output_len);
 
@@ -448,5 +451,7 @@ unsigned char* base64_decode(const char* encoded, size_t* output_len) {
     }
     
     decoded[*output_len] = '\0';
+    
+#pragma GCC diagnostic pop
     return decoded;
 }

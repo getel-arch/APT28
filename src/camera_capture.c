@@ -125,11 +125,11 @@ static ULONG STDMETHODCALLTYPE SampleGrabberCallback_Release(ISampleGrabberCB* T
 }
 
 // Sample grabber callback method
-static HRESULT STDMETHODCALLTYPE SampleGrabberCallback_SampleCB(ISampleGrabberCB* This, double time, IMediaSample* pSample) {
+static HRESULT STDMETHODCALLTYPE SampleGrabberCallback_SampleCB(ISampleGrabberCB* This __attribute__((unused)), double time __attribute__((unused)), IMediaSample* pSample __attribute__((unused))) {
     return S_OK;
 }
 
-static HRESULT STDMETHODCALLTYPE SampleGrabberCallback_BufferCB(ISampleGrabberCB* This, double time, BYTE* pBuffer, long bufferLen) {
+static HRESULT STDMETHODCALLTYPE SampleGrabberCallback_BufferCB(ISampleGrabberCB* This __attribute__((unused)), double time __attribute__((unused)), BYTE* pBuffer, long bufferLen) {
     SampleGrabberCallback* callback = (SampleGrabberCallback*)This;
     
     if (callback->captured) {

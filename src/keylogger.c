@@ -41,7 +41,7 @@ void AppendToKeylog(const char* str) {
 }
 
 // Convert virtual key code to readable string
-void VKeyToString(DWORD vkCode, BOOL shift, char* output, int maxLen) {
+void VKeyToString(DWORD vkCode, BOOL shift __attribute__((unused)), char* output, int maxLen) {
     // Handle special keys
     switch (vkCode) {
         case VK_RETURN: snprintf(output, maxLen, "[ENTER]"); return;
