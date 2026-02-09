@@ -19,6 +19,7 @@ class Client(db.Model):
     last_seen = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     ip = db.Column(db.String(45), nullable=False)  # IPv6 max length
     status = db.Column(db.String(50), default='active')
+    continuous_monitoring_enabled = db.Column(db.Boolean, default=False)
     
     # Relationships
     commands = db.relationship('Command', back_populates='client', cascade='all, delete-orphan')
@@ -32,7 +33,8 @@ class Client(db.Model):
             'registered_at': self.registered_at.isoformat(),
             'last_seen': self.last_seen.isoformat(),
             'ip': self.ip,
-            'status': self.status
+            'status': self.status,
+            'continuous_monitoring_enabled': self.continuous_monitoring_enabled
         }
 
 

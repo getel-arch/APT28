@@ -76,6 +76,22 @@ export const api = {
     return response.data;
   },
 
+  // Start continuous monitoring for a client
+  startContinuousMonitoring: async (clientId) => {
+    const response = await axios.post(`${API_BASE_URL}/continuous_monitoring/start`, {
+      client_id: clientId
+    });
+    return response.data;
+  },
+
+  // Stop continuous monitoring for a client
+  stopContinuousMonitoring: async (clientId) => {
+    const response = await axios.post(`${API_BASE_URL}/continuous_monitoring/stop`, {
+      client_id: clientId
+    });
+    return response.data;
+  },
+
   // Health check
   getHealth: async () => {
     const response = await axios.get(`${API_BASE_URL}/health`);

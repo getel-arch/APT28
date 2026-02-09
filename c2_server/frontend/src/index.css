@@ -385,3 +385,53 @@ img {
   height: auto;
   border-radius: 6px;
 }
+/* Continuous Monitoring Styles */
+.btn-success {
+  background: #238636;
+  color: #ffffff;
+}
+
+.btn-success:hover {
+  background: #2ea043;
+}
+
+.btn-danger {
+  background: #da3633;
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background: #f85149;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.button-group .btn {
+  flex: 1;
+}
+
+.monitoring-info {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.monitoring-info p {
+  margin: 0.5rem 0;
+  color: #c9d1d9;
+}
+
+.monitoring-info strong {
+  color: #58a6ff;
+}
+
+.small-text {
+  font-size: 0.85rem;
+  color: #8b949e;
+}
