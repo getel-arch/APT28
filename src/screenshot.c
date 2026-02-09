@@ -21,21 +21,57 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
 
     // Get the desktop window and its device context
     HWND hDesktopWnd = DynGetDesktopWindow();
+    if (hDesktopWnd == NULL) {
+        free(screenshot);
+        return NULL;
+    }
+
     HDC hScreenDC = DynGetDC(hDesktopWnd);
+    if (hScreenDC == NULL) {
+        free(screenshot);
+        return NULL;
+    }
+
     HDC hMemoryDC = DynCreateCompatibleDC(hScreenDC);
+    if (hMemoryDC == NULL) {
+        DynReleaseDC(hDesktopWnd, hScreenDC);
+        free(screenshot);
+        return NULL;
+    }
 
     // Get true physical screen dimensions (not scaled by DPI)
     int screenWidth = DynGetDeviceCaps(hScreenDC, DESKTOPHORZRES);
     int screenHeight = DynGetDeviceCaps(hScreenDC, DESKTOPVERTRES);
+
+    // Validate dimensions
+    if (screenWidth <= 0 || screenHeight <= 0) {
+        DynDeleteDC(hMemoryDC);
+        DynReleaseDC(hDesktopWnd, hScreenDC);
+        free(screenshot);
+        return NULL;
+    }
 
     screenshot->width = screenWidth;
     screenshot->height = screenHeight;
 
     // Create a compatible bitmap
     HBITMAP hBitmap = DynCreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
+    if (hBitmap == NULL) {
+        DynDeleteDC(hMemoryDC);
+        DynReleaseDC(hDesktopWnd, hScreenDC);
+        free(screenshot);
+        return NULL;
+    }
 
     // Select the bitmap into the memory DC
     HBITMAP hOldBitmap = (HBITMAP)DynSelectObject(hMemoryDC, hBitmap);
+    if (hOldBitmap == NULL) {
+        DynDeleteObject(hBitmap);
+        DynDeleteDC(hMemoryDC);
+        DynReleaseDC(hDesktopWnd, hScreenDC);
+        free(screenshot);
+        return NULL;
+    }
 
     // Copy the entire screen to the bitmap
     DynBitBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY);
@@ -85,7 +121,18 @@ ScreenshotData* CaptureScreenshotToMemory(void) {
 
     // Get the bitmap pixel data
     unsigned char* bitmapData = screenshot->data + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-    DynGetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+    int result = DynGetDIBits(hMemoryDC, hBitmap, 0, (UINT)bitmap.bmHeight, bitmapData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+    
+    if (result == 0) {
+        // DynGetDIBits failed
+        free(screenshot->data);
+        free(screenshot);
+        DynSelectObject(hMemoryDC, hOldBitmap);
+        DynDeleteObject(hBitmap);
+        DynDeleteDC(hMemoryDC);
+        DynReleaseDC(hDesktopWnd, hScreenDC);
+        return NULL;
+    }
 
     // Clean up
     DynSelectObject(hMemoryDC, hOldBitmap);
