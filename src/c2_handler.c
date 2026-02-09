@@ -70,6 +70,9 @@ static MonitoringThreadInfo g_monitoring_threads[5] = {0};
 static CRITICAL_SECTION g_monitoring_cs;
 static volatile BOOL g_monitoring_initialized = FALSE;
 
+// Forward declaration
+int report_capability_result(const char *client_id, CapabilityCommand cmd, const char *result);
+
 // Initialize continuous monitoring management
 void InitContinuousMonitoring() {
     if (!g_monitoring_initialized) {
